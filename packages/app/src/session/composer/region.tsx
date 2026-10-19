@@ -48,6 +48,7 @@ import type { Region } from "@/runtime/plugin/panels"
 import { SessionLocationMissing } from "./location-missing"
 import { SessionPluginPills } from "./plugin-pills"
 import type { MountedSession, SessionScreen } from "@opencode/plugin/gui"
+import { SessionMode } from "./session-mode"
 
 export function createActiveSessionRegion(input: {
   session: SessionModel
@@ -519,12 +520,15 @@ export function ActiveSessionComposerRegion(props: {
             // animates the chat's width.
             <div class="@container">
               <VoiceComposer session={props.session.data.info()}>
-                <Composer
-                  model={props.model.composer}
-                  borderUnderlay
-                  readOnly={props.model.queue.undoing()}
-                  suggestionBoundary={props.suggestionBoundary}
-                />
+                <div class="flex flex-col gap-2">
+                  <SessionMode session={props.session} />
+                  <Composer
+                    model={props.model.composer}
+                    borderUnderlay
+                    readOnly={props.model.queue.undoing()}
+                    suggestionBoundary={props.suggestionBoundary}
+                  />
+                </div>
               </VoiceComposer>
             </div>
           }

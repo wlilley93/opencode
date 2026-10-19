@@ -178,6 +178,7 @@ describe("Agent", () => {
 
       const agents = yield* agent.list()
       expect(agents.map((item) => String(item.id)).sort()).toEqual([
+        "ask",
         "build",
         "compaction",
         "explore",
@@ -204,6 +205,14 @@ describe("Agent", () => {
       expect(Permission.evaluate("external_directory", path.join(global.tmp, "*"), permissions).effect).toBe("allow")
       expect(Permission.evaluate("external_directory", "/outside/*", permissions).effect).toBe("allow")
       const explore = yield* agent.get(Agent.ID.make("explore"))
+      const ask = yield* agent.get(Agent.ID.make("ask"))
+      expect(ask?.mode).toBe("primary")
+      expect(ask?.system).toContain("read-only assistant")
+      expect(Permission.evaluate("edit", "src/index.ts", ask?.permissions ?? []).effect).toBe("deny")
+      expect(Permission.evaluate("shell", "git status", ask?.permissions ?? []).effect).toBe("deny")
+      expect(Permission.evaluate("question", "*", ask?.permissions ?? []).effect).toBe("allow")
+      expect(Permission.evaluate("read", "src/index.ts", ask?.permissions ?? []).effect).toBe("allow")
+      expect(Permission.evaluate("read", ".env", ask?.permissions ?? []).effect).toBe("ask")
       expect(Permission.evaluate("shell", "git log -5", explore?.permissions ?? []).effect).toBe("allow")
       expect(Permission.evaluate("edit", "src/index.ts", explore?.permissions ?? []).effect).toBe("deny")
       expect(Permission.evaluate("read", ".env", explore?.permissions ?? []).effect).toBe("ask")

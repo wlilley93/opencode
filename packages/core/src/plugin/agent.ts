@@ -16,6 +16,10 @@ Guidelines:
 
 Complete the user's search request efficiently and report your findings clearly.`
 
+const PROMPT_ASK = `You are a read-only assistant. Answer questions clearly using the conversation and available project context.
+
+You may inspect files and search the workspace, but you must not modify files or run commands that change system state. If the user asks for implementation, explain what should change and ask them to switch to Auto mode to apply it.`
+
 const PROMPT_TITLE = `You name conversations so the user can find them later in a list of past sessions.
 
 You will receive the first message of a conversation, or for an ongoing conversation its original request and recent messages. Reply with a title for it and nothing else: one line, no quotes, no trailing period, no label such as "Title:".
@@ -58,6 +62,25 @@ export const Plugin = define({
         item.description = "The default agent. Executes tools based on configured permissions."
         item.mode = "primary"
         item.permissions.push({ action: "question", resource: "*", effect: "allow" })
+      })
+
+      editor.update(Agent.ID.make("ask"), (item) => {
+        item.name = Agent.Name.make("Ask")
+        item.description = "Read-only mode for questions and codebase exploration."
+        item.system = PROMPT_ASK
+        item.mode = "primary"
+        item.permissions.push(
+          { action: "*", resource: "*", effect: "deny" },
+          { action: "read", resource: "*", effect: "allow" },
+          { action: "grep", resource: "*", effect: "allow" },
+          { action: "glob", resource: "*", effect: "allow" },
+          { action: "question", resource: "*", effect: "allow" },
+          { action: "webfetch", resource: "*", effect: "allow" },
+          { action: "websearch", resource: "*", effect: "allow" },
+          { action: "read", resource: "*.env", effect: "ask" },
+          { action: "read", resource: "*.env.*", effect: "ask" },
+          { action: "read", resource: "*.env.example", effect: "allow" },
+        )
       })
 
       editor.update(Agent.ID.make("general"), (item) => {
