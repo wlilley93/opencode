@@ -311,6 +311,16 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     })
   }
 
+  const permissionsRules = () => {
+    const sessionID = actions.session.identity.params.id
+
+    if (!sessionID) return
+    void openDialog(
+      () => import("@/session/commands/permission-dialog"),
+      (x) => dialog.show(() => <x.DialogPermissionRules />),
+    )
+  }
+
   const fork = () => {
     const sessionID = actions.session.identity.params.id
 
@@ -502,6 +512,13 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
   ]
 
   const permissionsCmds = () => [
+    permissionsCommand({
+      id: "permissions.rules",
+      title: language.t("command.permissions.rules"),
+      description: language.t("command.permissions.rules.description"),
+      slash: "permissions",
+      onSelect: permissionsRules,
+    }),
     permissionsCommand({
       id: "permissions.autoaccept",
       title: autoAccepting()
