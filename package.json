@@ -117,6 +117,7 @@
   "devDependencies": {
     "@actions/artifact": "5.0.1",
     "@ast-grep/cli": "0.44.0",
+    "@playwright/test": "catalog:",
     "@opencode/client": "workspace:*",
     "@oxlint/plugins": "1.60.0",
     "@tsconfig/bun": "catalog:",

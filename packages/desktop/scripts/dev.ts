@@ -3,20 +3,18 @@ import { constants, setPriority } from "node:os"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { prepareDevElectron } from "./dev-electron"
+import { selectOptions, type ServerSource } from "./dev-options"
 import { downloadCliToResources, windowsify } from "./utils"
-
-type ServerSource = { type: "build" } | { type: "download"; version: string }
-
-type DevOptions = { server: ServerSource; electron: string[] }
 
 async function main() {
   process.env.OPENCODE_CHANNEL = "local"
   process.env.OPENCODE_VERSION = `2.0.0-local-${Date.now()}`
   process.env.OPENCODE_DISABLE_CHANNEL_DB = "0"
-  const options = selectOptions()
+  const options = selectOptions(process.argv.slice(2))
 
   if (options.server.type === "build") process.env.OPENCODE_DESKTOP_SERVER_CHANNEL = "local"
-  process.env.OPENCODE_DESKTOP_ISOLATED_SERVER = "1"
+  process.env.OPENCODE_DESKTOP_ISOLATED_SERVER = options.serviceFile ? "0" : "1"
+  if (options.serviceFile) process.env.OPENCODE_DESKTOP_SERVICE_FILE = options.serviceFile
   await prepareDesktop()
   await prepareServer(options.server)
   await startDesktop(options.electron)
@@ -29,24 +27,6 @@ async function prepareDesktop() {
   ])
 
   if (process.platform === "darwin") process.env.ELECTRON_EXEC_PATH = await prepareDevElectron()
-}
-
-function selectOptions(): DevOptions {
-  const args = process.argv.slice(2)
-  const build = args.indexOf("--build-server")
-  const download = args.indexOf("--download-server")
-
-  if (build >= 0 && download >= 0) {
-    throw new Error("--build-server and --download-server cannot be used together")
-  }
-
-  if (download >= 0 && !args[download + 1]) throw new Error("--download-server requires a version")
-  const consumed = new Set([build, download, download >= 0 ? download + 1 : -1])
-
-  return {
-    server: download >= 0 ? { type: "download", version: args[download + 1] } : { type: "build" },
-    electron: args.filter((_, index) => !consumed.has(index)),
-  }
 }
 
 async function prepareServer(source: ServerSource) {

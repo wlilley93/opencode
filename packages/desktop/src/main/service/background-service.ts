@@ -35,18 +35,26 @@ const connect = Effect.fn("BackgroundService.connect")(function* (mode: "initial
   const desktopCli = yield* DesktopCli.Service
   const runFork = Effect.runForkWith(yield* Effect.context<FileSystem.FileSystem | Path.Path>())
   const isolated = !app.isPackaged && process.env.OPENCODE_DESKTOP_ISOLATED_SERVER === "1"
+  const external = !app.isPackaged ? process.env.OPENCODE_DESKTOP_SERVICE_FILE : undefined
   const cli = yield* desktopCli.resolve
-  const version = mode === "initial" ? cli.version : undefined
+  const version = mode === "initial" && !external ? cli.version : undefined
 
   if (isolated) process.env.XDG_STATE_HOME = app.getPath("userData")
   const client = yield* Effect.promise(() => import("@opencode/client/service"))
 
-  const ensure = () =>
-    client.Service.ensure({
-      file:
-        isolated && process.env.OPENCODE_DESKTOP_SERVER_CHANNEL === "local"
-          ? path.join(app.getPath("userData"), "opencode", "service-local.json")
-          : undefined,
+  const file = external
+    ? path.resolve(external)
+    : isolated && process.env.OPENCODE_DESKTOP_SERVER_CHANNEL === "local"
+      ? path.join(app.getPath("userData"), "opencode", "service-local.json")
+      : undefined
+  const ensure = () => {
+    if (external)
+      return client.Service.discover({ file }).then((service) => {
+        if (service) return service
+        throw new Error(`External OpenCode service is unavailable: ${file}`)
+      })
+    return client.Service.ensure({
+      file,
       version,
       // A fixed port makes a second contender fail to bind and back off; port 0 never collides, so two
       // services could boot against the same database.
@@ -59,10 +67,11 @@ const connect = Effect.fn("BackgroundService.connect")(function* (mode: "initial
       onStart: (reason, previousVersion) =>
         runFork(Effect.logInfo("v2 CLI background service starting", { reason, previousVersion })),
     })
+  }
 
   // A compatible service the entry module already found is adopted at once; ensure() still runs
   // afterwards for its side effects (terminal handoff completion), off the renderer's path.
-  const early = mode === "initial" && !isolated ? yield* Effect.promise(sidecarProbe) : undefined
+  const early = mode === "initial" && !isolated && !external ? yield* Effect.promise(sidecarProbe) : undefined
 
   if (early) yield* Effect.sync(() => void ensure().catch(() => undefined))
   const service = early ?? (yield* Effect.tryPromise(ensure))

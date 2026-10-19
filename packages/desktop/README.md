@@ -40,6 +40,13 @@ CLI preparation uses these channel rules:
 default. `bun dev --download-server <version>` instead downloads that CLI version for local development. Neither path
 requires `OPENCODE_CLI_DIST` or runs the production prebuild.
 
+To drive Desktop against an already-running development service, pass its registration file. Desktop adopts that
+authenticated service without starting or replacing it. This is intended for isolated harnesses such as OpenCode Drive:
+
+```bash
+bun dev --service-file /absolute/path/to/service-local.json
+```
+
 ## Beta channel
 
 Every push to the `beta` branch publishes OpenCode Beta (`ai.opencode.desktop.beta`) as version `0.0.0-beta-<run>` to
