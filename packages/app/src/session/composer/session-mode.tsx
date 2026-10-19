@@ -15,6 +15,7 @@ export function SessionMode(props: { session: SessionModel }) {
 
   const select = async (value: (typeof SESSION_MODES)[number]) => {
     const info = props.session.data.info()
+
     if (!info || info.agent === sessionModeAgent(value)) return
 
     try {
@@ -36,6 +37,7 @@ export function SessionMode(props: { session: SessionModel }) {
       >
         {SESSION_MODES.map((value) => {
           const copy = sessionModeCopy(value)
+
           return (
             <Button
               size="small"
