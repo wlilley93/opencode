@@ -1,0 +1,9 @@
+/* The first paint is the resting state; only the hand-off to the revealed rows fades. */
+[data-component="session-timeline-placeholder"] {
+  opacity: 0.7;
+  transition: opacity 110ms cubic-bezier(0.4, 0, 1, 1);
+
+  &[data-state="closed"] {
+    opacity: 0;
+  }
+}

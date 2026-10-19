@@ -11,12 +11,14 @@ import { cycleModelVariant, getConfiguredAgentVariant, resolveModelVariant } fro
 import { useComposerState } from "./persistence"
 import { useConfiguredModel } from "@/providers/models/configured"
 import { consoleProviderGroup, consoleProviderName } from "@/providers/catalog/console"
+import { useGlobal } from "@/runtime/server/runtime"
 
 export function createComposerControls(input: { model?: ModelSelection } = {}) {
   const local = useLocal()
   const sdk = useWorkspaceLocation()
   const data = useData()
   const providers = useProviders(() => sdk().directory)
+  const models = useGlobal().models
 
   const canonical = (provider: { id: string; canonical?: string }) =>
     provider.canonical ?? provider.id.replace(/^console-/, "")
@@ -36,6 +38,50 @@ export function createComposerControls(input: { model?: ModelSelection } = {}) {
     return direct ? provider.name : consoleProviderName(managed, provider.name)
   }
 
+  const loading = () => {
+    const selection = input.model ?? local.model
+
+    return (
+      !selection.ready() || data.location.agent.list({ directory: sdk().directory }) === undefined || !providers.ready()
+    )
+  }
+
+  const preview = createMemo(() => {
+    if (!loading()) return
+    const expected = (input.model ?? local.model).preview?.()
+    const label = expected && models.label.get(expected.model)
+
+    if (!expected || !label) return
+
+    return {
+      provider: label.provider,
+      model: label.model,
+      variants: label.variants,
+      variant:
+        resolveModelVariant({
+          variants: label.variants,
+          selected: expected.selected,
+          configured: undefined,
+          preferred: models.store.variant?.[`${expected.model.providerID}/${expected.model.modelID}`],
+        }) ?? "default",
+    }
+  })
+
+  // Remember what the chips render, so the next open of a not yet loaded Location can paint them at once.
+  createEffect(() => {
+    if (loading()) return
+    const selection = input.model ?? local.model
+    const key = selection.key()
+    const model = selection.current()
+
+    if (!key || !model) return
+    models.label.set(key, {
+      provider: providerName(key.providerID),
+      model: model.name,
+      variants: Object.keys(model.variants ?? {}),
+    })
+  })
+
   return createMemo<ComposerControls>(() => {
     const selection = input.model ?? local.model
     const key = selection.key()
@@ -54,10 +100,8 @@ export function createComposerControls(input: { model?: ModelSelection } = {}) {
         providerName: key && providerName(key.providerID),
         paid: providers.paid().length > 0,
         // The session's model applies only to its agent, so resolve agents before showing a model.
-        loading:
-          !selection.ready() ||
-          data.location.agent.list({ directory: sdk().directory }) === undefined ||
-          !providers.ready(),
+        loading: loading(),
+        preview: preview(),
       },
     }
   })

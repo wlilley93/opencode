@@ -39,6 +39,7 @@ import { SessionIdentityHeader } from "./session-identity-header"
 import { SessionReviewToggle } from "./header/session-header-actions"
 import { createPanelMotion, panelSprings, replayPanelToggle } from "@/shell/panel-motion"
 import { createTimelineCache } from "./timeline/cache"
+import { TimelinePlaceholder } from "./timeline/placeholder"
 
 export function SessionScreenView(props: { session: SessionModel }) {
   // The timeline cache captures its owner when created, so link handling must be provided above it.
@@ -247,6 +248,7 @@ function SessionScreenContent(props: {
           setRevealPart={timeline.view.setRevealPart}
           reveal={timeline.view.reveal}
           setScrollToEnd={timeline.view.setScrollToEnd}
+          onReveal={() => timeline.view.setShown(source.identity.sessionKey())}
           search={
             <Show when={active()}>
               <TimelineSearchBar controller={timelineSearch} />
@@ -328,6 +330,13 @@ function SessionScreenContent(props: {
             )}
           </Match>
           <Match when={session.identity.params.id}>
+            {/* Before the timeline, so revealed rows paint over it while it fades. */}
+            <TimelinePlaceholder
+              identity={session.identity.sessionKey()}
+              waiting={!messagesReady()}
+              shown={timeline.shown()}
+              centered={screen.centered()}
+            />
             <Show when={isDesktop() && !messagesReady()}>
               <SessionIdentityHeader sessionID={session.identity.params.id ?? ""} session={session.data.info()} />
             </Show>

@@ -22,6 +22,7 @@ import type { SessionInfo } from "@opencode/client/promise"
 import { projectForSession } from "@/shell/layout/helpers"
 import { isProjectDirectory } from "@/workspaces/paths"
 import type { Project } from "@/runtime/server/types"
+import { rememberModelLabel, type ModelLabel } from "@/providers/models/label"
 
 export const { use: useGlobal, provider: GlobalProvider } = createSimpleContext({
   name: "Global",
@@ -121,6 +122,7 @@ function createGlobalModels() {
     recent: [],
     favorite: [],
     variant: {},
+    label: {},
   })
 
   // Suspend readers only until persisted state loads. Refetching on every change would put the
@@ -144,6 +146,15 @@ function createGlobalModels() {
       loaded()
 
       return store.favorite
+    },
+    label: {
+      get: (model: { providerID: string; modelID: string }) => store.label[`${model.providerID}/${model.modelID}`],
+      set(model: { providerID: string; modelID: string }, value: ModelLabel) {
+        const next = rememberModelLabel(store.label, `${model.providerID}/${model.modelID}`, value)
+
+        // A top-level write replaces the record rather than merging it, so its key order stays newest last.
+        if (next) setStore({ label: next })
+      },
     },
     // Marks models visible in the picker regardless of the "latest per family" default.
     show(models: ReadonlyArray<{ providerID: string; modelID: string }>) {

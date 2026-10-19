@@ -19,6 +19,8 @@ export function createSessionTimelineInteraction(session: SessionModel) {
     pendingMessage: string | undefined
     scroll: { overflow: boolean; jump: boolean }
     follow: { sessionKey: string; pinned: boolean }
+    // The session whose timeline last showed its rows.
+    shown: string | undefined
     refs: {
       scroller: HTMLDivElement | undefined
       content: HTMLDivElement | undefined
@@ -35,6 +37,7 @@ export function createSessionTimelineInteraction(session: SessionModel) {
       sessionKey: session.identity.sessionKey(),
       pinned: true,
     },
+    shown: undefined,
     refs: {
       scroller: undefined,
       content: undefined,
@@ -391,6 +394,7 @@ export function createSessionTimelineInteraction(session: SessionModel) {
     lastUserMessage: timeline.lastUserMessage,
     resource: timeline.resource,
     ready: timeline.ready,
+    shown: () => timeline.ready() && state.shown === session.identity.sessionKey(),
     scroll: state.scroll,
     scroller: () => state.refs.scroller,
     view: {
@@ -423,6 +427,7 @@ export function createSessionTimelineInteraction(session: SessionModel) {
         },
       },
       setScrollRef,
+      setShown: (sessionKey: string) => setState("shown", sessionKey),
       setScrollToEnd: (scroll: (behavior?: ScrollBehavior) => void) => {
         scrollToEnd = scroll
       },

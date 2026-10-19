@@ -80,6 +80,8 @@ type Input = {
   setRevealMessage?: (fn: (id: string, partID?: string) => void) => void
   setRevealPart?: (fn: (target: string) => boolean) => void
   setScrollToEnd?: (fn: (behavior?: ScrollBehavior) => void) => void
+  /** Runs once this timeline shows its rows while selected: at once when warm, after a cold mount measures. */
+  onReveal?: () => void
   /** A tool call the route asks this timeline to open on; `done` clears it once revealed. */
   reveal?: { target: () => string | undefined; done: () => void }
 }
@@ -613,8 +615,15 @@ export function createTimelineVirtualizer(input: Input) {
       contentObserver?.disconnect()
       viewportObserver?.disconnect()
       virtualContent.style.removeProperty("visibility")
+      input.onReveal?.()
     })
   }
+
+  createEffect(
+    on(active, (selected) => {
+      if (selected && !coldPending) input.onReveal?.()
+    }),
+  )
 
   onMount(() => {
     if (!coldPending || !virtualContent) return

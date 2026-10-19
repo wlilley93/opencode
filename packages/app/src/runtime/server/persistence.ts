@@ -64,6 +64,14 @@ export const ModelState = Persistence.struct({
       Schema.UndefinedOr(Schema.String).pipe(Schema.catchDecoding(() => Effect.succeed(Option.none()))),
     ),
   ),
+  // The model chip's last rendered names, keyed `providerID/modelID`, shown before a Location's catalog loads.
+  label: Persistence.record(
+    Persistence.struct({
+      provider: Schema.optional(Schema.String),
+      model: Schema.String,
+      variants: Persistence.array(Schema.String),
+    }),
+  ),
 })
 
 export const VcsState = Persistence.struct({

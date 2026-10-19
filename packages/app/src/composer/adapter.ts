@@ -20,6 +20,8 @@ export type ComposerControls = {
     providerName?: string
     paid: boolean
     loading: boolean
+    /** While loading, the names the chips last showed for the expected model, so they paint before the catalog. */
+    preview?: { provider?: string; model: string; variant: string; variants: string[] }
   }
 }
 
