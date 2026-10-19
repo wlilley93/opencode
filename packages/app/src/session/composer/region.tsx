@@ -33,6 +33,7 @@ import { resolveSessionComposerSelection } from "./selection"
 import { createSessionRequestModel } from "../requests/model"
 import type { Region } from "@/runtime/extension/panels"
 import { SessionLocationMissing } from "./location-missing"
+import { SessionMode } from "./session-mode"
 
 export function createActiveSessionRegion(input: {
   session: SessionModel
@@ -317,12 +318,15 @@ export function ActiveSessionComposerRegion(props: {
             <div class="relative">
               <SessionQueuePanel queue={props.model.queue} />
               <div class="relative z-10">
-                <Composer
-                  model={props.model.composer}
-                  borderUnderlay
-                  readOnly={props.model.queue.undoing()}
-                  suggestionBoundary={props.suggestionBoundary}
-                />
+                <div class="flex flex-col gap-2">
+                  <SessionMode session={props.session} />
+                  <Composer
+                    model={props.model.composer}
+                    borderUnderlay
+                    readOnly={props.model.queue.undoing()}
+                    suggestionBoundary={props.suggestionBoundary}
+                  />
+                </div>
               </div>
             </div>
           }
