@@ -14,7 +14,29 @@ export const VoiceHandler = HttpApiBuilder.group(Api, "server.voice", (handlers)
     const global = yield* Global.Service
     const locations = yield* LocationServiceMap.Service
     const services = locations.get(Location.Ref.make({ directory: AbsolutePath.make(global.config) }))
-    return handlers.handle(
+    return handlers
+      .handle(
+        "voice.transcribe",
+        Effect.fn("server.voice.transcribe")(
+          function* (request) {
+            yield* awaitPlugins
+            const voice = yield* Voice.Service
+            const result = yield* voice
+              .transcribe(request.payload)
+              .pipe(
+                Effect.mapError((error) =>
+                  error._tag === "Voice.InvalidRequestError"
+                    ? new InvalidRequestError({ message: error.message })
+                    : new ServiceUnavailableError({ message: error.message, service: error.service }),
+                ),
+              )
+            return { data: { text: result.text, language: result.language } }
+          },
+          Effect.provide(services),
+          locationErrors,
+        ),
+      )
+      .handle(
       "voice.session",
       Effect.fn("server.voice.session")(
         function* (request) {

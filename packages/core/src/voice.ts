@@ -8,6 +8,8 @@ import {
   type RealtimeTransportInput,
 } from "@opencode/ai/experimental"
 import { RequestExecutor } from "@opencode/ai/route"
+import { readFileSync } from "node:fs"
+import { homedir } from "node:os"
 import { makeLocationNode } from "@opencode/util/effect/app-node"
 import { Context, Effect, Layer, Redacted, Schema } from "effect"
 import { requestExecutor } from "./effect/app-node-platform.js"
@@ -30,8 +32,21 @@ export class UnavailableError extends Schema.TaggedError<UnavailableError>()("Vo
 
 export type Error = InvalidRequestError | UnavailableError
 
+export interface TranscribeInput {
+  /** Base64 audio. */
+  readonly audio: string
+  readonly mimeType?: string
+  readonly language?: string
+}
+
+export interface TranscribeOutput {
+  readonly text: string
+  readonly language?: string
+}
+
 export interface Interface {
   readonly session: (input: SessionInput) => Effect.Effect<RealtimeTransport, Error>
+  readonly transcribe: (input: TranscribeInput) => Effect.Effect<TranscribeOutput, Error>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/Voice") {}
@@ -77,7 +92,65 @@ export const layer = Layer.effect(
       )
     })
 
-    return Service.of({ session })
+    /** ElevenLabs key: the environment first, then the helper's config file. */
+    const speechKey = () => {
+      if (process.env.ELEVENLABS_API_KEY) return process.env.ELEVENLABS_API_KEY
+      try {
+        const config = JSON.parse(readFileSync(`${homedir()}/.config/opencode/voice.json`, "utf8")) as {
+          apiKey?: string
+        }
+        return config.apiKey
+      } catch {
+        return undefined
+      }
+    }
+
+    const transcribe = Effect.fn("Voice.transcribe")(function* (input: TranscribeInput) {
+      const key = speechKey()
+      if (!key)
+        return yield* new UnavailableError({
+          service: "elevenlabs",
+          message:
+            "Voice needs an ElevenLabs API key: set ELEVENLABS_API_KEY or add apiKey to ~/.config/opencode/voice.json.",
+        })
+
+      const form = new FormData()
+      form.set("model_id", "scribe_v1")
+      if (input.language) form.set("language_code", input.language)
+      form.set(
+        "file",
+        new Blob([Buffer.from(input.audio, "base64")], { type: input.mimeType ?? "audio/webm" }),
+        "audio.webm",
+      )
+
+      const response = yield* Effect.tryPromise({
+        try: () =>
+          fetch("https://api.elevenlabs.io/v1/speech-to-text", {
+            method: "POST",
+            headers: { "xi-api-key": key },
+            body: form,
+          }),
+        catch: (error) =>
+          new UnavailableError({ service: "elevenlabs", message: `Transcription request failed: ${error}` }),
+      })
+
+      if (!response.ok) {
+        const detail = yield* Effect.tryPromise(() => response.text()).pipe(Effect.orElseSucceed(() => ""))
+        return yield* new UnavailableError({
+          service: "elevenlabs",
+          message: `Transcription failed (${response.status}): ${detail.slice(0, 200)}`,
+        })
+      }
+
+      const body = yield* Effect.tryPromise({
+        try: () => response.json() as Promise<{ text?: string; language_code?: string }>,
+        catch: () => new UnavailableError({ service: "elevenlabs", message: "Transcription returned invalid JSON" }),
+      })
+
+      return { text: (body.text ?? "").trim(), language: body.language_code }
+    })
+
+    return Service.of({ session, transcribe })
   }),
 )
 

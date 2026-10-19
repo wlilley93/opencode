@@ -13,6 +13,11 @@ const voice = makeLocationNode({
   layer: Layer.succeed(
     Voice.Service,
     Voice.Service.of({
+      transcribe: (input) => {
+        if (input.audio === "invalid")
+          return Effect.fail(new Voice.UnavailableError({ message: "Transcription failed", service: "elevenlabs" }))
+        return Effect.succeed({ text: "hello from the test", language: "eng" })
+      },
       session: (input) => {
         if (input.model === "invalid")
           return Effect.fail(new Voice.InvalidRequestError({ message: "Unsupported voice model" }))
@@ -84,5 +89,44 @@ it.live("routes POST /api/experimental/voice/session and maps errors", () =>
 
     expect((yield* post({ model: "invalid", transport: { type: "websocket" } })).status).toBe(400)
     expect((yield* post({ model: "unavailable", transport: { type: "websocket" } })).status).toBe(503)
+  }),
+)
+
+it.live("routes POST /api/voice/transcribe", () =>
+  Effect.gen(function* () {
+    const tmp = yield* Effect.acquireDisposable(Effect.promise(() => tmpdir("opencode-voice-transcribe-")))
+    const global = path.join(tmp.path, "global")
+    yield* Effect.promise(() => fs.mkdir(global))
+    const handler = yield* ServerFetch.make(
+      {
+        database: { path: ":memory:" },
+        config: { directory: global },
+        fs: { filewatcher: false },
+        models: { fetch: false },
+      },
+      { overrides: [Voice.node.replace(voice)] },
+    )
+    const post = (body: unknown) =>
+      Effect.promise(() =>
+        handler(
+          new Request("http://opencode.local/api/voice/transcribe", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(body),
+          }),
+        ),
+      )
+
+    const ok = yield* post({ audio: "aGVsbG8=", mimeType: "audio/webm" })
+    expect(ok.status).toBe(200)
+    expect(yield* Effect.promise(() => ok.json())).toEqual({
+      data: { text: "hello from the test", language: "eng" },
+    })
+
+    const failed = yield* post({ audio: "invalid" })
+    expect(failed.status).toBe(503)
+
+    const missing = yield* post({})
+    expect(missing.status).toBe(400)
   }),
 )

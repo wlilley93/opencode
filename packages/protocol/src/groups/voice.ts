@@ -34,7 +34,33 @@ export const VoiceTransport = Schema.Union([
   VoiceWebSocketTransport,
 ]).annotate({ identifier: "VoiceTransport" })
 
+export const VoiceTranscribeResponse = Schema.Struct({
+  data: Schema.Struct({
+    text: Schema.String,
+    language: Schema.optional(Schema.String),
+  }),
+}).annotate({ identifier: "VoiceTranscribeResponse" })
+
 export const VoiceGroup = HttpApiGroup.make("server.voice")
+  .add(
+    HttpApiEndpoint.post("voice.transcribe", "/api/voice/transcribe", {
+      payload: Schema.Struct({
+        /** Base64 audio: webm/opus from a browser, wav from the desktop helper. */
+        audio: Schema.String,
+        mimeType: Schema.optional(Schema.String),
+        language: Schema.optional(Schema.String),
+      }),
+      success: VoiceTranscribeResponse,
+      error: [InvalidRequestError, ServiceUnavailableError, LocationNotFoundError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "voice.transcribe",
+        summary: "Transcribe audio",
+        description:
+          "Transcribe one audio clip with the server's configured speech provider and return the text. Used by dictation in the web and desktop composers.",
+      }),
+    ),
+  )
   .add(
     HttpApiEndpoint.post("voice.session", "/api/experimental/voice/session", {
       payload: Schema.Struct({
