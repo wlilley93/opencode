@@ -71,6 +71,8 @@ export const currentRoute = (pathname: string, search: string): LayoutRoute => {
   if (parts[0] === "connect") return { type: "connect" }
 
   if (parts[0] === "components") return { type: "components" }
+  // The Boltrig shell owns its own layout; to the tab state it is home.
+  if (parts[0] === "boltrig") return { type: "home" }
 
   if (parts[0] === "new-session") {
     const draftID = new URLSearchParams(search).get("draftId")

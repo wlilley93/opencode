@@ -47,32 +47,38 @@ export function preloadRoute(url: string) {
   return Promise.resolve()
 }
 
+const BoltrigRoute = lazy(() => import("@/boltrig/shell").then((module) => ({ default: module.BoltrigRoute })))
+
 export function AppRoutes() {
   return (
-    <Route component={AppLayout}>
-      <Route path="/" component={Home} />
-      <Route path="/settings" component={SettingsScreen} />
-      <Route
-        path="/server/:serverKey/session/:id"
-        component={() => (
-          <SessionRouteFrame>
-            <Suspense
-              fallback={
-                <div class="flex min-h-0 flex-1 px-[var(--shell-inline-inset,8px)] pb-[var(--shell-bottom-inset,8px)] pt-[var(--shell-top-inset,8px)]">
-                  <SessionPanelFrame raised />
-                </div>
-              }
-            >
-              <TargetServerRoute>
-                <TargetSessionRouteContent />
-              </TargetServerRoute>
-            </Suspense>
-          </SessionRouteFrame>
-        )}
-      />
-      <Route path="/new-session" component={DraftRoute} />
-      {ComponentsLab && <Route path="/components" component={ComponentsLab} />}
-    </Route>
+    <>
+      {/* The Boltrig shell runs on mock data, so it sits outside the server-gated layout. */}
+      <Route path="/boltrig" component={BoltrigRoute} />
+      <Route component={AppLayout}>
+        <Route path="/" component={Home} />
+        <Route path="/settings" component={SettingsScreen} />
+        <Route
+          path="/server/:serverKey/session/:id"
+          component={() => (
+            <SessionRouteFrame>
+              <Suspense
+                fallback={
+                  <div class="flex min-h-0 flex-1 px-[var(--shell-inline-inset,8px)] pb-[var(--shell-bottom-inset,8px)] pt-[var(--shell-top-inset,8px)]">
+                    <SessionPanelFrame raised />
+                  </div>
+                }
+              >
+                <TargetServerRoute>
+                  <TargetSessionRouteContent />
+                </TargetServerRoute>
+              </Suspense>
+            </SessionRouteFrame>
+          )}
+        />
+        <Route path="/new-session" component={DraftRoute} />
+        {ComponentsLab && <Route path="/components" component={ComponentsLab} />}
+      </Route>
+    </>
   )
 }
 
