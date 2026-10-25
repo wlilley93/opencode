@@ -170,7 +170,7 @@ export function BoltrigSidebar(props: {
       <div class="mt-auto shrink-0 pt-3">
         <div class="flex h-7 items-center gap-2.5 px-2 text-[11.5px] text-v2-text-text-faint">
           <Icon name="monitor" class="text-v2-icon-icon-muted" />
-          <span class="truncate">{language.t("boltrig.server")}</span>
+          <span class="truncate">{language.t("boltrig.server", { minor: data.state.minor ?? "…" })}</span>
         </div>
       </div>
     </aside>

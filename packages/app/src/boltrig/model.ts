@@ -6,12 +6,19 @@ import { createContext, onCleanup, useContext } from "solid-js"
 import { createStore, produce } from "solid-js/store"
 import {
   BoltrigApiError,
+  CONTRACT_MINOR,
+  RESEARCH_MINOR,
   call,
+  hello,
   known,
   type AgentDetail,
   type AgentRow,
   type ApiErrorKind,
   type InboxState,
+  type ResearchGraph,
+  type ResearchLeads,
+  type ResearchPartUnavailable,
+  type ResearchViewResponse,
   type SendResponse,
   type SourceError,
   type StepItem,
@@ -55,6 +62,24 @@ export type Conversation = { teamId: string; sessionHandle?: string; messages: M
 
 type Loadable<T> = { value?: T; error?: ApiErrorKind; sourceErrors?: SourceError[]; complete?: boolean }
 
+// The research view as the screen draws it: every page of research.view.get walked and joined. `restarted` counts
+// the walks begun again because the view changed under the client (generatedAt or inputsDigest moved).
+export type ResearchView = {
+  graph: ResearchGraph | ResearchPartUnavailable
+  leads: ResearchLeads | ResearchPartUnavailable
+  summary: ResearchViewResponse["summary"]
+  pages: number
+  restarted: number
+  capped: boolean
+}
+
+// Not served is a state, not an error: the server negotiated below 2.3, or does not list research.read for the team.
+export type ResearchState =
+  | { status: "loading" }
+  | { status: "not_served"; minor: number; capability?: string }
+  | { status: "error"; error: ApiErrorKind }
+  | { status: "ready"; view: ResearchView }
+
 type State = {
   status: "loading" | "ready" | "not_a_member" | "error"
   error?: ApiErrorKind
@@ -68,6 +93,8 @@ type State = {
   agentDetails: Record<string, Loadable<AgentDetail>>
   conversations: Record<string, Conversation>
   transcripts: Record<string, Loadable<StepItem[]>>
+  research: Record<string, ResearchState>
+  minor?: number
   observedAt?: string
 }
 
@@ -97,6 +124,7 @@ export function createBoltrigData() {
     agentDetails: {},
     conversations: readConversations(),
     transcripts: {},
+    research: {},
   })
 
   // Every call goes through here: a 401 signs the person out; any other refusal is returned as a kind for the
@@ -113,6 +141,44 @@ export function createBoltrigData() {
       }
       return { error: "network" }
     }
+  }
+
+  // hello needs no token. A server that does not answer it is treated as 2.2: every op this shell shipped with
+  // works there, and the research view says it is not served.
+  let negotiation: Promise<number> | undefined
+  function negotiate() {
+    negotiation ??= hello()
+      .then((answer) => answer.negotiated.minor)
+      .catch(() => CONTRACT_MINOR)
+      .then((minor) => {
+        setState("minor", minor)
+        return minor
+      })
+    return negotiation
+  }
+
+  async function loadResearch(teamId: string) {
+    if (!state.research[teamId] || state.research[teamId].status !== "ready") setState("research", teamId, { status: "loading" })
+    const minor = await negotiate()
+    if (minor < RESEARCH_MINOR) return setState("research", teamId, { status: "not_served", minor })
+    const capabilities = await attempt((bearer) =>
+      call("capabilities.get", { scope: { kind: "team", teamId } }, bearer, { minor: RESEARCH_MINOR }),
+    )
+    if ("error" in capabilities) return setState("research", teamId, { status: "error", error: capabilities.error })
+    const capability = capabilities.value.capabilities.find((item) => item.id === "research.read")
+    if (capability?.state !== "available")
+      return setState("research", teamId, {
+        status: "not_served",
+        minor,
+        capability: capability?.state === "unavailable" ? capability.reason : "not_listed",
+      })
+    const view = await attempt((bearer) => walkResearch(teamId, bearer))
+    if ("error" in view) {
+      // 409 here means the server negotiated 3 but refused the 2.3 header: the op is not served after all.
+      if (view.error === "version") return setState("research", teamId, { status: "not_served", minor })
+      return setState("research", teamId, { status: "error", error: view.error })
+    }
+    setState("research", teamId, { status: "ready", view: view.value })
   }
 
   async function loadViewer() {
@@ -297,6 +363,7 @@ export function createBoltrigData() {
   }
 
   async function refresh() {
+    void negotiate()
     await loadViewer()
     if (state.status !== "ready") return
     await Promise.all([loadAgents(), loadWorks(), loadTurns()])
@@ -352,6 +419,7 @@ export function createBoltrigData() {
     refresh,
     loadTurn,
     loadAgent,
+    loadResearch,
     send,
     newConversation,
     conversationTurns,
@@ -362,6 +430,63 @@ export function createBoltrigData() {
     roleName,
     teamTurns,
   }
+}
+
+// Walk every page of research.view.get. Each list pages from its own offset; a list already finished is asked
+// from its total and anything it returns is ignored. If the view changes between pages (generatedAt or
+// inputsDigest), the walk starts again, at most three times; past 40 pages it stops and says the view is capped.
+async function walkResearch(teamId: string, bearer: string): Promise<ResearchView> {
+  const walk = async (restarted: number): Promise<ResearchView> => {
+    const first = await call("research.view.get", { teamId }, bearer, { minor: RESEARCH_MINOR })
+    const stamp = freshness(first)
+    const graph = first.graph.state === "available" ? { ...first.graph, nodes: [...first.graph.nodes], edges: [...first.graph.edges] } : first.graph
+    const leads = first.leads.state === "available" ? { ...first.leads, rows: [...first.leads.rows] } : first.leads
+    const offsets = (part: Pick<ResearchViewResponse, "graph" | "leads">) => ({
+      nodesFrom: part.graph.state === "available" ? known(part.graph.nextNodes) : undefined,
+      edgesFrom: part.graph.state === "available" ? known(part.graph.nextEdges) : undefined,
+      leadsFrom: part.leads.state === "available" ? known(part.leads.next) : undefined,
+    })
+    const pages = { count: 1, next: offsets({ graph, leads }) }
+    while (pages.next.nodesFrom !== undefined || pages.next.edgesFrom !== undefined || pages.next.leadsFrom !== undefined) {
+      if (pages.count >= 40) return { graph, leads, summary: first.summary, pages: pages.count, restarted, capped: true }
+      const asked = pages.next
+      const page = await call(
+        "research.view.get",
+        {
+          teamId,
+          nodesFrom: asked.nodesFrom ?? (graph.state === "available" ? graph.totalNodes : 0),
+          edgesFrom: asked.edgesFrom ?? (graph.state === "available" ? graph.totalEdges : 0),
+          leadsFrom: asked.leadsFrom ?? (leads.state === "available" ? leads.totalRows : 0),
+        },
+        bearer,
+        { minor: RESEARCH_MINOR },
+      )
+      pages.count++
+      if (freshness(page) !== stamp || page.graph.state !== graph.state || page.leads.state !== leads.state) {
+        if (restarted >= 3) throw new BoltrigApiError("research.view.get", "unavailable", 0, "changing", "The view kept changing.")
+        return walk(restarted + 1)
+      }
+      if (page.graph.state === "available" && graph.state === "available") {
+        if (asked.nodesFrom !== undefined) graph.nodes.push(...page.graph.nodes)
+        if (asked.edgesFrom !== undefined) graph.edges.push(...page.graph.edges)
+        graph.skipped = Math.max(graph.skipped, page.graph.skipped)
+      }
+      if (page.leads.state === "available" && leads.state === "available" && asked.leadsFrom !== undefined)
+        leads.rows.push(...page.leads.rows)
+      const after = offsets(page)
+      pages.next = {
+        nodesFrom: asked.nodesFrom === undefined ? undefined : after.nodesFrom,
+        edgesFrom: asked.edgesFrom === undefined ? undefined : after.edgesFrom,
+        leadsFrom: asked.leadsFrom === undefined ? undefined : after.leadsFrom,
+      }
+    }
+    return { graph, leads, summary: first.summary, pages: pages.count, restarted, capped: false }
+  }
+  return walk(0)
+}
+
+function freshness(response: ResearchViewResponse) {
+  return `${known(response.summary.generatedAt) ?? "-"}|${known(response.summary.inputsDigest) ?? "-"}`
 }
 
 export type BoltrigData = ReturnType<typeof createBoltrigData>
