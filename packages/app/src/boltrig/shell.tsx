@@ -10,6 +10,7 @@ import { BoltrigDataContext, createBoltrigData, useBoltrig } from "./model"
 import { RowError } from "./parts"
 import { BoltrigSidebar, type BoltrigSelection } from "./sidebar"
 import { BoltrigSignIn } from "./signin"
+import { BoltrigStatus } from "./status"
 import { BoltrigTeam } from "./team"
 
 const BoltrigDoing = lazy(() => import("./doing").then((module) => ({ default: module.BoltrigDoing })))
@@ -21,6 +22,7 @@ function useTitle(selection: () => BoltrigSelection) {
   return () => {
     const current = selection()
     if (current.kind === "home") return { name: language.t("boltrig.double.name"), meta: language.t("boltrig.double.meta") }
+    if (current.kind === "status") return { name: language.t("boltrig.status.title"), meta: language.t("boltrig.status.meta") }
     if (current.kind === "inbox") return { name: language.t("boltrig.inbox"), meta: language.t("boltrig.inbox.meta") }
     if (current.kind === "mode")
       return { name: language.t(`boltrig.mode.${current.mode}`), meta: language.t(`boltrig.mode.${current.mode}.meta`) }
@@ -69,6 +71,9 @@ function Body(props: { selection: BoltrigSelection; onSelect: (selection: Boltri
       </Match>
       <Match when={props.selection.kind === "home"}>
         <BoltrigHome onSelect={props.onSelect} />
+      </Match>
+      <Match when={props.selection.kind === "status"}>
+        <BoltrigStatus />
       </Match>
       <Match when={props.selection.kind === "inbox"}>
         <BoltrigInbox />

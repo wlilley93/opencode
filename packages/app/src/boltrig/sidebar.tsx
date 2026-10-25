@@ -8,6 +8,7 @@ import { Dot, RowError, Tile } from "./parts"
 export type BoltrigSelection =
   | { kind: "home" }
   | { kind: "inbox" }
+  | { kind: "status" }
   | { kind: "mode"; mode: ModeID }
   | { kind: "team"; teamId: string; roleId?: string; talk?: boolean }
 
@@ -179,10 +180,13 @@ export function BoltrigSidebar(props: {
       </For>
 
       <div class="mt-auto shrink-0 pt-3">
-        <div class="flex h-7 items-center gap-2.5 px-2 text-[11.5px] text-v2-text-text-faint">
+        <Row selected={props.selection.kind === "status"} onClick={() => props.onSelect({ kind: "status" })}>
           <Icon name="monitor" class="text-v2-icon-icon-muted" />
-          <span class="truncate">{language.t("boltrig.server", { minor: data.state.minor ?? "…" })}</span>
-        </div>
+          {language.t("boltrig.status.nav")}
+          <span class="ms-auto truncate text-[11.5px] text-v2-text-text-faint">
+            {language.t("boltrig.server", { minor: data.state.minor ?? "…" })}
+          </span>
+        </Row>
       </div>
     </aside>
   )
