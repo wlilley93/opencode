@@ -33,6 +33,15 @@ export default defineConfig({
     host: "0.0.0.0",
     allowedHosts: true,
     port: 3000,
+    // The Boltrig Client API sends no CORS headers, so the browser reaches it same-origin through this proxy.
+    // BOLTRIG_SERVER overrides the default dev server (the beelink stack on the tailnet).
+    proxy: {
+      "/boltrig-api": {
+        target: process.env.BOLTRIG_SERVER ?? "https://beelink.tailb4b671.ts.net",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/boltrig-api/, "/client/v2"),
+      },
+    },
   },
   build: {
     ...(process.env.VITE_OPENCODE_TEST_FIXTURES === "1"
