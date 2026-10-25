@@ -1,11 +1,11 @@
 import { Icon } from "@opencode/ui/icon"
-import { createMemo, createSignal, For, Show } from "solid-js"
+import { createEffect, createMemo, createSignal, For, Match, Show, Switch } from "solid-js"
 import { useLanguage } from "@/runtime/i18n/language"
-import type { WorkState } from "./api"
+import { known, type Work, type WorkState } from "./api"
 import { BoltrigComposer } from "./composer"
 import { TurnBlock } from "./conversation"
 import { TERMINAL, useBoltrig } from "./model"
-import { Caption, Dot, Note, Pill, RowError, useBoltrigWords } from "./parts"
+import { Caption, Dot, Pill, RowError, useBoltrigWords } from "./parts"
 import type { BoltrigSelection } from "./sidebar"
 
 const groups: WorkState[] = ["open", "closed", "cancelled"]
@@ -28,6 +28,11 @@ export function BoltrigDoing(props: { onSelect: (selection: BoltrigSelection) =>
     return role ? data.roleName(role) : `${teamId}/${roleId}`
   }
   const delivery = () => data.head("delivery")
+  // The selected work is read in full (work.show) and with its Linear context (work_context.get).
+  createEffect(() => {
+    const work = selected()
+    if (work) void data.loadWork(work.id, work.origin.team)
+  })
 
   return (
     <div data-slot="boltrig-doing" class="flex min-h-0 flex-1">
@@ -146,9 +151,7 @@ export function BoltrigDoing(props: { onSelect: (selection: BoltrigSelection) =>
                   {(turn) => <TurnBlock turn={turn} name={roleName(turn.team, turn.role)} open={false} />}
                 </For>
               </div>
-              <Note title={language.t("boltrig.doing.issue.title")} aside={language.t("boltrig.notServed")} dashed>
-                {language.t("boltrig.doing.issue.body")}
-              </Note>
+              <WorkExtra work={work()} onPick={(id) => setPicked(id)} />
               <div class="text-[11.5px] text-v2-text-text-faint">
                 {data.state.observedAt ? language.t("boltrig.observed", { time: words.time(data.state.observedAt) }) : ""}
               </div>
@@ -157,5 +160,147 @@ export function BoltrigDoing(props: { onSelect: (selection: BoltrigSelection) =>
         </Show>
       </aside>
     </div>
+  )
+}
+
+const link = "inline-flex min-h-11 min-w-11 items-center break-all text-v2-text-text-base underline min-[701px]:min-h-7"
+
+// What work.show and work_context.get add to the list row: the server's own account of the work (steps, approvals
+// waiting) and the issue, documents and neighbouring works. Texts marked untrusted are drawn as plain text; a link is
+// only a link when it is https.
+function WorkExtra(props: { work: Work; onPick: (workId: string) => void }) {
+  const data = useBoltrig()
+  const language = useLanguage()
+  const words = useBoltrigWords()
+  const detail = () => data.state.workDetails[props.work.id]
+  const context = () => data.state.workContexts[props.work.id]
+  const safe = (url: string) => url.startsWith("https://")
+  const row = "grid grid-cols-[112px_minmax(0,1fr)] gap-y-1.5 text-v2-text-text-base"
+  const ids = (list: string[]) => (
+    <For each={list}>
+      {(id) => (
+        <button type="button" onClick={() => props.onPick(id)} class="inline-flex min-h-11 min-w-11 items-center font-mono text-xs underline min-[701px]:min-h-7">
+          {id.slice(0, 8)}
+        </button>
+      )}
+    </For>
+  )
+  return (
+    <>
+      <div data-slot="boltrig-work-detail" class="flex flex-col gap-1.5">
+        <Caption>{language.t("boltrig.work.detail")}</Caption>
+        <Switch>
+          <Match when={detail()?.error && !detail()?.value}>
+            <RowError kind={detail()!.error!} />
+          </Match>
+          <Match when={!detail()?.value}>
+            <div class="px-2.5 text-xs text-v2-text-text-faint">{language.t("boltrig.turn.loading")}</div>
+          </Match>
+          <Match when={detail()?.value}>
+            {(value) => (
+              <>
+                <div class={`${row} px-2.5`}>
+                  <span class="text-v2-text-text-faint">{language.t("boltrig.doing.prop.status")}</span>
+                  <span>{language.t(`boltrig.doing.group.${value().status}`)}</span>
+                  <span class="text-v2-text-text-faint">{language.t("boltrig.doing.prop.steps")}</span>
+                  <span>{language.t("boltrig.doing.steps", { used: value().used, max: value().maxSteps })}</span>
+                </div>
+                <Caption>{language.plural("boltrig.work.approvals", value().approvals.length)}</Caption>
+                <For each={value().approvals}>
+                  {(approval) => (
+                    <div data-slot="boltrig-approval" class="mx-2.5 rounded-[8px] border border-v2-border-border-base bg-v2-background-bg-layer-01 px-3 py-2">
+                      <div class="flex flex-wrap items-center gap-2">
+                        <span class="font-mono text-xs text-v2-text-text-base">{approval.code}</span>
+                        <Pill>{approval.state}</Pill>
+                        <span class="ms-auto text-xs text-v2-text-text-faint">{language.t("boltrig.work.expires", { time: words.time(approval.expiresAt) })}</span>
+                      </div>
+                      <div class="mt-1 break-words text-v2-text-text-muted">{approval.summary}</div>
+                      <div class="mt-1 text-xs text-v2-text-text-faint">{language.t("boltrig.work.requestedBy", { who: approval.requestedBy })}</div>
+                    </div>
+                  )}
+                </For>
+                <Show when={value().approvals.length > 0}>
+                  <div class="px-2.5 text-xs text-v2-text-text-faint">{language.t("boltrig.work.approvalsReadOnly")}</div>
+                </Show>
+              </>
+            )}
+          </Match>
+        </Switch>
+      </div>
+      <div data-slot="boltrig-work-context" class="flex flex-col gap-1.5">
+        <Caption>{language.t("boltrig.work.context")}</Caption>
+        <Switch>
+          <Match when={context()?.error && !context()?.value}>
+            <RowError kind={context()!.error!} />
+          </Match>
+          <Match when={!context()?.value}>
+            <div class="px-2.5 text-xs text-v2-text-text-faint">{language.t("boltrig.turn.loading")}</div>
+          </Match>
+          <Match when={context()?.value}>
+            {(value) => {
+              const issue = () => {
+                const item = value().issue
+                return item.state === "known" ? item.value : undefined
+              }
+              const documents = () => {
+                const item = value().documents
+                return item.state === "known" ? item.value : undefined
+              }
+              const state = () => known(value().state)
+              return (
+                <div class={`${row} px-2.5`}>
+                  <span class="text-v2-text-text-faint">{language.t("boltrig.work.role")}</span>
+                  <span>{language.t(`boltrig.work.role.${value().role}`)}</span>
+                  <span class="text-v2-text-text-faint">{language.t("boltrig.work.issue")}</span>
+                  <span>
+                    <Show when={issue()} fallback={<span class="text-v2-text-text-muted">{language.t("boltrig.work.noIssue", { reason: words.unknown(value().issue) })}</span>}>
+                      {(item) => (
+                        <Show when={known(item().url)} fallback={<span>{item().key.text}</span>}>
+                          {(url) => (
+                            <Show when={safe(url())} fallback={<span>{item().key.text}</span>}>
+                              <a href={url()} target="_blank" rel="noopener noreferrer" class={link}>
+                                {item().key.text}
+                              </a>
+                            </Show>
+                          )}
+                        </Show>
+                      )}
+                    </Show>
+                  </span>
+                  <span class="text-v2-text-text-faint">{language.t("boltrig.work.linearState")}</span>
+                  <span>{state() ? language.t(`boltrig.doing.group.${state()!}`) : words.unknown(value().state)}</span>
+                  <span class="text-v2-text-text-faint">{language.t("boltrig.work.linearStatus")}</span>
+                  <span>{known(value().status)?.text ?? words.unknown(value().status)}</span>
+                  <span class="text-v2-text-text-faint">{language.t("boltrig.work.documents")}</span>
+                  <span class="flex flex-col">
+                    <For each={documents()} fallback={<span class="text-v2-text-text-muted">{documents() ? language.t("boltrig.work.noDocuments") : words.unknown(value().documents)}</span>}>
+                      {(item) => (
+                        <Show when={safe(item.url)} fallback={<span>{item.title.text}</span>}>
+                          <a href={item.url} target="_blank" rel="noopener noreferrer" class={link}>
+                            {item.title.text}
+                          </a>
+                        </Show>
+                      )}
+                    </For>
+                  </span>
+                  <span class="text-v2-text-text-faint">{language.t("boltrig.work.parent")}</span>
+                  <span>
+                    <Show when={known(value().parent)} fallback={<span class="text-v2-text-text-muted">{words.unknown(value().parent)}</span>}>
+                      {(id) => ids([id()])}
+                    </Show>
+                  </span>
+                  <span class="text-v2-text-text-faint">{language.t("boltrig.work.children")}</span>
+                  <span class="flex flex-wrap gap-x-2">
+                    <Show when={known(value().children)} fallback={<span class="text-v2-text-text-muted">{words.unknown(value().children)}</span>}>
+                      {(list) => (list().length === 0 ? <span class="text-v2-text-text-muted">{language.t("boltrig.work.noChildren")}</span> : ids(list()))}
+                    </Show>
+                  </span>
+                </div>
+              )
+            }}
+          </Match>
+        </Switch>
+      </div>
+    </>
   )
 }
