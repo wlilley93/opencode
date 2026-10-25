@@ -80,12 +80,14 @@ export function TurnBlock(props: { turn: Turn; name: string; open?: boolean }) {
   )
 }
 
-function Bubble(props: { message: Message }) {
+function Bubble(props: { message: Message; answered: boolean }) {
   const language = useLanguage()
   const words = useBoltrigWords()
   const status = () => {
     const message = props.message
     if (message.state === "failed") return words.errorText(message.error ?? "invalid")
+    // Once the head has a turn on this work, the turn carries the progress; the send state would only go stale.
+    if (props.answered) return ""
     if (message.state === "queued") return language.t("boltrig.send.queued", { position: message.position ?? 0 })
     return language.t(`boltrig.send.${message.state}`)
   }
@@ -107,7 +109,7 @@ function Said(props: { step: StepItem; name: string }) {
   return (
     <div class="py-2">
       <div class="mb-1 flex items-center gap-2 text-xs text-v2-text-text-faint">
-        <span class="font-medium text-v2-text-text-muted">{known(props.step.roleId) ?? props.name}</span>
+        <span class="font-medium text-v2-text-text-muted">{props.name}</span>
         <span>{language.t(`boltrig.step.${props.step.kind}`)}</span>
       </div>
       <div class="leading-[var(--line-height-base)] whitespace-pre-wrap text-v2-text-text-base">{body()}</div>
@@ -182,9 +184,23 @@ export function BoltrigConversation(props: { teamId: string; emptyHint?: string 
             <For each={items()}>
               {(item) => (
                 <Switch>
-                  <Match when={item.message}>{(message) => <Bubble message={message()} />}</Match>
+                  <Match when={item.message}>
+                    {(message) => (
+                      <Bubble
+                        message={message()}
+                        answered={data.conversationTurns(props.teamId).some((turn) => turn.work === message().workId && turn.receivedAt >= message().sentAt.slice(0, 19))}
+                      />
+                    )}
+                  </Match>
                   <Match when={item.turn}>{(turn) => <TurnBlock turn={turn()} name={headName()} />}</Match>
-                  <Match when={item.step}>{(step) => <Said step={step()} name={headName()} />}</Match>
+                  <Match when={item.step}>
+                    {(step) => (
+                      <Said
+                        step={step()}
+                        name={known(step().roleId) && known(step().roleId) !== head()?.roleId ? known(step().roleId)! : headName()}
+                      />
+                    )}
+                  </Match>
                 </Switch>
               )}
             </For>

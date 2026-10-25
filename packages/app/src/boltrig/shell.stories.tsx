@@ -1,15 +1,15 @@
-import { BoltrigShell } from "./shell"
+import { BoltrigRoute } from "./shell"
 
 export default {
   title: "Boltrig/Shell",
   id: "boltrig-shell",
-  component: BoltrigShell,
+  component: BoltrigRoute,
   parameters: {
     layout: "fullscreen",
     docs: {
       description: {
         component:
-          "The Boltrig shell on mock data: the person's double as Home, the three modes (Learning, Doing, Interfacing) and the worlds they belong to. Built to the Concept · Boltrig frames in Figma.",
+          "The Boltrig shell, reading a live Boltrig server through the Client API (boltrig.human 2.2). Signed out it shows the sign-in screen. Built to the Concept · Boltrig frames in Figma.",
       },
     },
   },
@@ -18,7 +18,7 @@ export default {
 export const Home = {
   render: () => (
     <div style={{ width: "1440px", height: "900px" }}>
-      <BoltrigShell />
+      <BoltrigRoute />
     </div>
   ),
 }
