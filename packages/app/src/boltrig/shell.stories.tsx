@@ -9,7 +9,7 @@ export default {
     docs: {
       description: {
         component:
-          "The Boltrig shell, reading a live Boltrig server through the Client API (boltrig.human 2.2). Signed out it shows the sign-in screen. Built to the Concept · Boltrig frames in Figma.",
+          "The Boltrig shell, reading a live Boltrig server through the Client API (boltrig.human 2.2, and 2.3 for the research view). Signed out it shows the sign-in screen. Built to the Concept · Boltrig frames in Figma.",
       },
     },
   },
