@@ -119,6 +119,94 @@ export type TurnPage = Page & { rows: Turn[]; more: boolean }
 export type TurnEvent = { at: string; kind: string; text: string }
 export type TurnDetail = { turn: Turn; events: TurnEvent[]; complete: boolean; sourceErrors: SourceError[] }
 
+// ---- sources.list, sources.show, held.list, doctor.get, status.get, logs.tail (operator.read, read-only) ----------
+
+export type SourceType = "webhook" | "api" | "schedule"
+export type SourceRow = {
+  id: string
+  type: SourceType
+  status: "active" | "paused"
+  preset: KnownUnknown<string>
+  held: number
+}
+export type SourcesPage = Page & { rows: SourceRow[]; more: boolean }
+export type SourceKey = { id: string; label: string; createdAt: string; lastUsedAt: KnownUnknown<string>; revoked: boolean }
+export type SourceReceipt = {
+  id: string
+  state: string
+  receivedAt: string
+  reason: KnownUnknown<string>
+  workId: KnownUnknown<string>
+}
+// The contract carries no delivery target ("to") for a source: only its type, preset, state, held count, keys and
+// last receipts. The screen says so rather than inventing one.
+export type SourceDetail = Omit<SourceRow, never> & {
+  keys: KnownUnknown<{ rows: SourceKey[]; nextAfter: KnownUnknown<string>; more: boolean }>
+  lastEvents: SourceReceipt[]
+}
+export type HeldReceipt = { id: string; team: string; reason: KnownUnknown<string>; receivedAt: string }
+export type HeldPage = Page & { rows: HeldReceipt[]; more: boolean }
+
+export type DoctorVerdict = "pass" | "warn" | "fail" | "skipped"
+export type DoctorReport = { checks: { check: string; verdict: DoctorVerdict; reason: string }[] }
+
+export type StatusAgent = {
+  role: string
+  busy: boolean
+  blocked: boolean
+  configuredRuntime: KnownUnknown<string>
+  effectiveRuntime: KnownUnknown<string>
+  inbox: { state: InboxState; count: number }[]
+}
+export type StatusTeam = {
+  team: string
+  container: KnownUnknown<"starting" | "running" | "stopping" | "stopped" | "failed">
+  containerId: KnownUnknown<string>
+  agents: StatusAgent[]
+}
+export type StatusReport = {
+  teams: StatusTeam[]
+  counts: { teams: number; openWork: number; heldEvents: number; uncertainTurns: number; pendingApprovals: number }
+  complete: boolean
+  sourceErrors: SourceError[]
+}
+
+export type LogLine = { at: string; source: string; role: KnownUnknown<string>; text: string }
+export type LogTail = {
+  team: string
+  role: KnownUnknown<string>
+  tail: number
+  lines: LogLine[]
+  complete: boolean
+  sourceErrors: SourceError[]
+  capabilities: { rawRuntimeLogs: string; rawContainerLogs: string; publicMessageText: string; hostLogs: string }
+}
+
+// ---- work.show, work_context.get ---------------------------------------------------------------------------
+
+export type WorkApproval = {
+  code: string
+  work: string
+  summary: string
+  requestedBy: string
+  eligible: string[]
+  state: string
+  expiresAt: string
+  decidedBy: KnownUnknown<string>
+  decidedAt: KnownUnknown<string>
+}
+export type WorkDetail = Omit<Work, "approvals"> & { approvals: WorkApproval[] }
+export type WorkContext = {
+  workId: string
+  role: "origin" | "participant"
+  issue: KnownUnknown<{ key: Untrusted; url: KnownUnknown<string> }>
+  state: KnownUnknown<WorkState>
+  status: KnownUnknown<Untrusted>
+  documents: KnownUnknown<{ title: Untrusted; url: string }[]>
+  parent: KnownUnknown<string>
+  children: KnownUnknown<string[]>
+}
+
 // ---- conversation.send ---------------------------------------------------------------------------------------
 
 export type SendRequest =
@@ -251,6 +339,14 @@ type Ops = {
   "turn.show": [{ turnId: string; agent?: string }, TurnDetail]
   "conversation.send": [SendRequest, SendResponse]
   "conversation.reconcile": [ReconcileRequest, SendResponse]
+  "sources.list": [Record<string, never>, SourcesPage]
+  "sources.show": [{ source: string; after?: string; limit?: number }, SourceDetail]
+  "held.list": [Record<string, never>, HeldPage]
+  "status.get": [Record<string, never>, StatusReport]
+  "doctor.get": [Record<string, never>, DoctorReport]
+  "logs.tail": [{ team: string; role?: string; tail?: number }, LogTail]
+  "work.show": [{ workId: string }, WorkDetail]
+  "work_context.get": [{ teamId: string; workId: string }, WorkContext]
   "sessions.list": [{ teamId: string; roleId?: string; cursor?: string; limit: number }, { sessions: SessionItem[]; cursor: Cursor }]
   "runs.list": [{ sessionHandle: string; cursor?: string; limit: number }, { runs: RunItem[]; cursor: Cursor }]
   "steps.list": [{ runHandle: string; cursor?: string; limit: number }, { steps: StepItem[]; cursor: Cursor }]

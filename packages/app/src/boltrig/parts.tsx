@@ -1,6 +1,6 @@
 import type { JSX } from "solid-js"
 import { Show } from "solid-js"
-import type { ApiErrorKind, InboxState } from "./api"
+import type { ApiErrorKind, InboxState, KnownUnknown } from "./api"
 import { useLanguage } from "@/runtime/i18n/language"
 
 // Small pieces every Boltrig screen shares, so the screens stay in one grammar.
@@ -74,7 +74,10 @@ export function useBoltrigWords() {
   const errorText = (kind: ApiErrorKind) => language.t(`boltrig.error.${kind}`)
   const time = (iso: string) =>
     new Date(iso).toLocaleString(language.intl(), { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" })
-  return { turnState, errorText, time }
+  // Why a value is not here, in the server's own words: the contract names the reason, so the screen does too.
+  const unknown = (value: KnownUnknown<unknown>) =>
+    value.state === "unknown" ? language.t(`boltrig.unknown.${value.reason}`) : ""
+  return { turnState, errorText, time, unknown }
 }
 
 // A row-level source error: one read failed, the rest of the page stands.

@@ -133,11 +133,8 @@ function Summary(props: { summary: ResearchSummary }) {
   const count = (value: KnownUnknown<number>, key: "entities" | "edges" | "claims") =>
     value.state === "known"
       ? language.t(`boltrig.research.${key}`, { count: value.value })
-      : `${key} ${language.t(value.reason === "not_reported" ? "boltrig.research.notReported" : "boltrig.research.unavailable")}`
-  const unknownText = (value: KnownUnknown<unknown>) =>
-    value.state === "unknown" && value.reason === "not_reported"
-      ? language.t("boltrig.research.notReported")
-      : language.t("boltrig.research.unavailable")
+      : language.t(`boltrig.research.${key}.unknown`, { reason: words.unknown(value) })
+  const unknownText = words.unknown
   const verdicts = () =>
     known(props.summary.verdicts)
       ?.slice()
@@ -514,7 +511,7 @@ function computeLayout(graph: ResearchGraph) {
 
 function LeadsPane(props: { leads: ResearchView["leads"] }) {
   const language = useLanguage()
-  const notReported = language.t("boltrig.research.notReported")
+  const words = useBoltrigWords()
   return (
     <Show
       when={props.leads.state === "available" && (props.leads as ResearchLeads)}
@@ -550,8 +547,8 @@ function LeadsPane(props: { leads: ResearchView["leads"] }) {
                       {lead.question.text}
                     </div>
                     <div class="flex flex-wrap items-center gap-1.5">
-                      <Pill>{language.t("boltrig.research.lead.status", { status: known(lead.status) ?? notReported })}</Pill>
-                      <Pill>{language.t("boltrig.research.lead.handledBy", { who: known(lead.handledBy) ?? notReported })}</Pill>
+                      <Pill>{language.t("boltrig.research.lead.status", { status: known(lead.status) ?? words.unknown(lead.status) })}</Pill>
+                      <Pill>{language.t("boltrig.research.lead.handledBy", { who: known(lead.handledBy) ?? words.unknown(lead.handledBy) })}</Pill>
                       <span class="ms-auto font-mono text-[11px] text-v2-text-text-faint">{lead.file}</span>
                     </div>
                   </div>

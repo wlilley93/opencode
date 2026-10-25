@@ -13,6 +13,14 @@ import {
   known,
   type AgentDetail,
   type AgentRow,
+  type DoctorReport,
+  type HeldPage,
+  type LogTail,
+  type SourceDetail,
+  type SourcesPage,
+  type StatusReport,
+  type WorkContext,
+  type WorkDetail,
   type ApiErrorKind,
   type InboxState,
   type ResearchGraph,
@@ -96,6 +104,15 @@ type State = {
   conversations: Record<string, Conversation>
   transcripts: Record<string, Loadable<StepItem[]>>
   research: Record<string, ResearchState>
+  // Operator reads (operator.read): all read-only. Each is a Loadable so one refusal marks one pane, not the page.
+  sources: Loadable<SourcesPage>
+  sourceDetails: Record<string, Loadable<SourceDetail>>
+  held: Loadable<HeldPage>
+  doctor: Loadable<DoctorReport>
+  serverStatus: Loadable<StatusReport>
+  logs: Record<string, Loadable<LogTail>>
+  workDetails: Record<string, Loadable<WorkDetail>>
+  workContexts: Record<string, Loadable<WorkContext>>
   minor?: number
   observedAt?: string
 }
@@ -134,6 +151,14 @@ export function createBoltrigData() {
     conversations: readConversations(),
     transcripts: {},
     research: {},
+    sources: {},
+    sourceDetails: {},
+    held: {},
+    doctor: {},
+    serverStatus: {},
+    logs: {},
+    workDetails: {},
+    workContexts: {},
   })
 
   // Every call goes through here: a 401 signs the person out; any other refusal is returned as a kind for the
@@ -164,6 +189,48 @@ export function createBoltrigData() {
         return minor
       })
     return negotiation
+  }
+
+  // One read into a Loadable: success clears the error, a refusal keeps what was last read and marks the pane.
+  async function read<T>(run: (bearer: string) => Promise<T>): Promise<Loadable<T>> {
+    const result = await attempt(run)
+    return "error" in result ? { error: result.error } : { value: result.value, error: undefined }
+  }
+
+  const loadSources = async () => setState("sources", await read((bearer) => call("sources.list", {}, bearer)))
+  const loadHeld = async () => setState("held", await read((bearer) => call("held.list", {}, bearer)))
+  const loadDoctor = async () => setState("doctor", await read((bearer) => call("doctor.get", {}, bearer)))
+  const loadStatus = async () => setState("serverStatus", await read((bearer) => call("status.get", {}, bearer)))
+  const loadLogs = async (team: string, tail = 100) =>
+    setState("logs", team, await read((bearer) => call("logs.tail", { team, tail }, bearer)))
+  const loadSource = async (source: string) =>
+    setState("sourceDetails", source, await read((bearer) => call("sources.show", { source }, bearer)))
+  // sources.show pages the keys by `after`; the next page is appended to the ones already shown.
+  async function loadMoreKeys(source: string) {
+    const current = state.sourceDetails[source]?.value?.keys
+    const after = current?.state === "known" ? known(current.value.nextAfter) : undefined
+    if (!after) return
+    const more = await read((bearer) => call("sources.show", { source, after }, bearer))
+    if (!more.value) return setState("sourceDetails", source, "error", more.error)
+    const page = more.value.keys
+    setState(
+      "sourceDetails",
+      source,
+      produce((draft) => {
+        if (draft.value?.keys.state !== "known" || page.state !== "known") return
+        draft.value.keys.value.rows.push(...page.value.rows)
+        draft.value.keys.value.nextAfter = page.value.nextAfter
+        draft.value.keys.value.more = page.value.more
+      }),
+    )
+  }
+  const loadWork = async (workId: string, teamId: string) => {
+    const [detail, context] = await Promise.all([
+      read((bearer) => call("work.show", { workId }, bearer)),
+      read((bearer) => call("work_context.get", { teamId, workId }, bearer)),
+    ])
+    setState("workDetails", workId, detail)
+    setState("workContexts", workId, context)
   }
 
   async function loadResearch(teamId: string) {
@@ -491,6 +558,14 @@ export function createBoltrigData() {
     loadTurn,
     loadAgent,
     loadResearch,
+    loadSources,
+    loadSource,
+    loadMoreKeys,
+    loadHeld,
+    loadDoctor,
+    loadStatus,
+    loadLogs,
+    loadWork,
     send,
     reconcile,
     resend,
