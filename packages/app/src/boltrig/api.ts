@@ -1,11 +1,16 @@
-// A typed client for the Boltrig Client API, contract boltrig.human 2.2 (@boltrig/human-contract 2.0.0-pre.5).
-// Every op is POST <base>/<op> with JSON, the contract header and a bearer token; `hello` alone needs no token.
+// A typed client for the Boltrig Client API, contract boltrig.human 2.2, and 2.3 for research.view.get
+// (@boltrig/human-contract 2.0.0-pre.6). Every op is POST <base>/<op> with JSON, the contract header
+// (`boltrig.human/2.<minor>`) and a bearer token; `hello` alone needs no token.
 // The base is same-origin (`/boltrig-api`, proxied to the server by the dev server) because the Client API
 // sends no CORS headers. Nothing secret lives here: the token is passed in by the caller on every call.
 
 export const CONTRACT = "boltrig.human"
 export const CONTRACT_MINOR = 2
-export const CONTRACT_HEADER = `${CONTRACT}/2.${CONTRACT_MINOR}`
+// The highest minor this client implements. `hello` asks for it; a server that does not offer it answers a lower
+// one, and the client keeps every 2.2 op on 2.2. Only the research view (and the capability listing that names
+// `research.read`) is sent at 2.3, and only once the server has negotiated 3.
+export const RESEARCH_MINOR = 3
+export const contractHeader = (minor: number) => `${CONTRACT}/2.${minor}`
 
 export const apiBase = (import.meta.env.VITE_BOLTRIG_API as string | undefined) ?? "/boltrig-api"
 
@@ -157,6 +162,78 @@ export type StepItem = {
 }
 type Cursor = KnownUnknown<string>
 
+// ---- research.view.get (research.read, minor 3): a team head's merged view and leads, read-only ------------
+
+export type ResearchAssessment =
+  | "supported"
+  | "reproduced"
+  | "contested"
+  | "inconclusive"
+  | "contradicted"
+  | "not_reproduced"
+  | "unassessed"
+export type ResearchTally = { assessment: ResearchAssessment; count: number }
+export type ResearchUnavailableReason =
+  | "not_running"
+  | "no_head"
+  | "container_missing"
+  | "file_missing"
+  | "too_large"
+  | "unreadable"
+  | "invalid"
+export type ResearchPartUnavailable = { state: "unavailable"; reason: ResearchUnavailableReason }
+export type ResearchNode = { id: string; type: string; label: Untrusted }
+export type ResearchEdge = {
+  id: string
+  source: string
+  target: string
+  predicate: string
+  claims: number
+  assessment: ResearchTally[]
+}
+export type ResearchGraph = {
+  state: "available"
+  nodes: ResearchNode[]
+  edges: ResearchEdge[]
+  totalNodes: number
+  totalEdges: number
+  skipped: number
+  nextNodes: KnownUnknown<number>
+  nextEdges: KnownUnknown<number>
+}
+export type ResearchLead = {
+  id: string
+  file: string
+  question: Untrusted
+  status: KnownUnknown<string>
+  handledBy: KnownUnknown<string>
+}
+export type ResearchLeads = {
+  state: "available"
+  files: number
+  rows: ResearchLead[]
+  totalRows: number
+  skipped: number
+  next: KnownUnknown<number>
+}
+export type ResearchSummary = {
+  entities: KnownUnknown<number>
+  edges: KnownUnknown<number>
+  claims: KnownUnknown<number>
+  verdicts: KnownUnknown<ResearchTally[]>
+  generatedAt: KnownUnknown<string>
+  inputsDigest: KnownUnknown<string>
+  leads: KnownUnknown<number>
+  openLeads: KnownUnknown<number>
+}
+export type ResearchViewRequest = { teamId: string; nodesFrom?: number; edgesFrom?: number; leadsFrom?: number }
+export type ResearchViewResponse = {
+  teamId: string
+  graph: ResearchGraph | ResearchPartUnavailable
+  leads: ResearchLeads | ResearchPartUnavailable
+  summary: ResearchSummary
+}
+
 // ---- The op table: one place that ties each op to its request and response ---------------------------------
 
 type Ops = {
@@ -173,6 +250,7 @@ type Ops = {
   "sessions.list": [{ teamId: string; roleId?: string; cursor?: string; limit: number }, { sessions: SessionItem[]; cursor: Cursor }]
   "runs.list": [{ sessionHandle: string; cursor?: string; limit: number }, { runs: RunItem[]; cursor: Cursor }]
   "steps.list": [{ runHandle: string; cursor?: string; limit: number }, { steps: StepItem[]; cursor: Cursor }]
+  "research.view.get": [ResearchViewRequest, ResearchViewResponse]
 }
 export type Op = keyof Ops
 
@@ -210,11 +288,11 @@ export async function call<O extends Op>(
   op: O,
   body: Ops[O][0],
   token: string | undefined,
-  init?: { signal?: AbortSignal },
+  init?: { signal?: AbortSignal; minor?: number },
 ): Promise<Ops[O][1]> {
   const headers: Record<string, string> = {
     "content-type": "application/json",
-    "boltrig-contract": CONTRACT_HEADER,
+    "boltrig-contract": contractHeader(init?.minor ?? CONTRACT_MINOR),
   }
   if (token) headers.authorization = `Bearer ${token}`
 
@@ -245,6 +323,6 @@ export async function call<O extends Op>(
 export const hello = () =>
   call(
     "hello",
-    { contract: CONTRACT, version: { major: 2, minor: CONTRACT_MINOR }, client: { name: "boltrig-web", version: "0" } },
+    { contract: CONTRACT, version: { major: 2, minor: RESEARCH_MINOR }, client: { name: "boltrig-web", version: "0" } },
     undefined,
   )
