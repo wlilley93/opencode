@@ -6,6 +6,13 @@ export const BOLTRIG_ENGLISH = {
   "boltrig.notServed": "not yet served",
   "boltrig.notAMember": "You are signed in, but no person on this server is bound to your sign-in.",
   "boltrig.signout": "Sign out",
+  "boltrig.doing.back": "Works",
+  "boltrig.learning.pane.chat": "Chat",
+  "boltrig.learning.pane.research": "Research",
+  "boltrig.menu.open": "Open menu",
+  "boltrig.menu.close": "Close menu",
+  "boltrig.team.expand": "Show {{team}} roles",
+  "boltrig.team.collapse": "Hide {{team}} roles",
   "boltrig.server": "Boltrig server · Client API 2.{{minor}}",
 
   "boltrig.double.name": "Your double",

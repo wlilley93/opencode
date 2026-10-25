@@ -38,7 +38,7 @@ export function BoltrigSignIn() {
           type="button"
           disabled={form.busy || !originRegistered()}
           onClick={() => void signIn()}
-          class="h-8 w-full rounded-[7px] bg-v2-text-text-base font-medium text-v2-background-bg-base disabled:opacity-40"
+          class="h-8 w-full rounded-[7px] max-[700px]:h-11 bg-v2-text-text-base font-medium text-v2-background-bg-base disabled:opacity-40"
         >
           {language.t("boltrig.signin.button")}
         </button>
@@ -68,11 +68,11 @@ export function BoltrigSignIn() {
               onInput={(event) => setForm({ pasted: event.currentTarget.value })}
               placeholder={language.t("boltrig.signin.dev.placeholder")}
               aria-label={language.t("boltrig.signin.dev.placeholder")}
-              class="h-8 min-w-0 flex-1 rounded-[7px] border border-v2-border-border-strong bg-v2-background-bg-layer-01 px-2.5 font-mono text-xs text-v2-text-text-base outline-none"
+              class="h-8 min-w-0 flex-1 rounded-[7px] max-[700px]:h-11 max-[700px]:text-base border border-v2-border-border-strong bg-v2-background-bg-layer-01 px-2.5 font-mono text-xs text-v2-text-text-base outline-none"
             />
             <button
               type="submit"
-              class="h-8 rounded-[7px] border border-v2-border-border-strong px-3 text-v2-text-text-muted"
+              class="h-8 rounded-[7px] border border-v2-border-border-strong px-3 max-[700px]:h-11 max-[700px]:px-4 text-v2-text-text-muted"
             >
               {language.t("boltrig.signin.dev.use")}
             </button>

@@ -25,7 +25,7 @@ export function TurnBlock(props: { turn: Turn; name: string; open?: boolean }) {
       <button
         type="button"
         onClick={() => setOpen(!open())}
-        class="flex w-full items-center gap-2 text-left text-v2-text-text-muted"
+        class="flex min-h-7 w-full items-center gap-2 text-left text-v2-text-text-muted max-[700px]:min-h-11"
       >
         <Icon
           name={finished() ? (props.turn.state === "done" ? "check" : "circle-xmark") : "status-active"}
@@ -35,10 +35,10 @@ export function TurnBlock(props: { turn: Turn; name: string; open?: boolean }) {
         <span class="font-medium text-v2-text-text-base">{props.name}</span>
         <span>{words.turnState(props.turn.state)}</span>
         <span class="ms-auto font-mono text-[11.5px] text-v2-text-text-faint">{props.turn.id.slice(0, 8)}</span>
-        <span class="text-[11.5px] text-v2-text-text-faint">{words.time(props.turn.receivedAt)}</span>
+        <span class="text-[11.5px] text-v2-text-text-faint max-[700px]:hidden">{words.time(props.turn.receivedAt)}</span>
       </button>
       <Show when={open()}>
-        <div class="mt-1.5 ms-[7px] border-s border-v2-border-border-base ps-4">
+        <div class="mt-1.5 ms-[7px] border-s border-v2-border-border-base ps-4 max-[700px]:ps-3">
           <Switch>
             <Match when={detail()?.error}>{(kind) => <RowError kind={kind()} />}</Match>
             <Match when={!detail()?.value}>
@@ -53,7 +53,7 @@ export function TurnBlock(props: { turn: Turn; name: string; open?: boolean }) {
                   >
                     {(event) => (
                       <div class="flex gap-3 py-[3px] text-[12.5px]">
-                        <span class="w-[124px] shrink-0 truncate font-mono text-[11.5px] text-v2-text-text-faint">
+                        <span class="w-[124px] shrink-0 truncate font-mono max-[700px]:w-[88px] text-[11.5px] text-v2-text-text-faint">
                           {event.kind}
                         </span>
                         <span class="min-w-0 flex-1 break-words text-v2-text-text-muted">{event.text}</span>
@@ -172,7 +172,7 @@ export function BoltrigConversation(props: { teamId: string; emptyHint?: string 
   return (
     <div data-slot="boltrig-conversation" class="flex min-h-0 flex-1 flex-col">
       <div ref={scroller} class="min-h-0 flex-1 overflow-y-auto">
-        <div class="mx-auto w-[680px] max-w-[calc(100%-48px)] py-6">
+        <div class="mx-auto w-[680px] max-w-[calc(100%-48px)] max-[700px]:max-w-[calc(100%-24px)] py-6">
           <Show
             when={items().length > 0}
             fallback={
@@ -224,10 +224,10 @@ export function BoltrigConversation(props: { teamId: string; emptyHint?: string 
           </Show>
         </div>
       </div>
-      <div class="mx-auto w-[680px] max-w-[calc(100%-48px)] shrink-0 pb-4">
+      <div class="mx-auto w-[680px] max-w-[calc(100%-48px)] max-[700px]:max-w-[calc(100%-24px)] shrink-0 pb-4">
         <div class="mb-1.5 flex items-center gap-2 text-xs text-v2-text-text-faint">
           <Show when={(conversation()?.messages.length ?? 0) > 0}>
-            <button type="button" class="hover:text-v2-text-text-muted" onClick={() => data.newConversation(props.teamId)}>
+            <button type="button" class="hover:text-v2-text-text-muted max-[700px]:min-h-11 max-[700px]:min-w-11 max-[700px]:px-2" onClick={() => data.newConversation(props.teamId)}>
               {language.t("boltrig.conversation.new")}
             </button>
           </Show>

@@ -44,16 +44,16 @@ export function BoltrigComposer(props: {
             event.preventDefault()
             void submit()
           }}
-          class="min-h-[40px] w-full resize-none bg-transparent text-[13px] leading-[var(--line-height-base)] text-v2-text-text-base outline-none placeholder:text-v2-text-text-faint"
+          class="min-h-[40px] w-full resize-none max-[700px]:min-h-11 bg-transparent text-[13px] max-[700px]:text-base leading-[var(--line-height-base)] text-v2-text-text-base outline-none placeholder:text-v2-text-text-faint"
         />
-        <div class="flex h-[26px] items-center gap-3.5 text-[12.5px] text-v2-text-text-muted">
+        <div class="flex h-[26px] items-center gap-3.5 text-[12.5px] text-v2-text-text-muted max-[700px]:h-11">
           <span class="truncate">{props.target}</span>
           <button
             type="button"
             aria-label={language.t("boltrig.composer.send")}
             disabled={props.disabled || draft.sending || !draft.text.trim()}
             onClick={() => void submit()}
-            class="ms-auto grid size-[26px] shrink-0 place-items-center rounded-[7px] bg-v2-text-text-accent text-v2-background-bg-base disabled:opacity-40"
+            class="ms-auto grid size-[26px] shrink-0 place-items-center rounded-[7px] max-[700px]:size-11 max-[700px]:rounded-[10px] bg-v2-text-text-accent text-v2-background-bg-base disabled:opacity-40"
           >
             <Show when={!draft.sending} fallback={<Icon name="status" size="small" />}>
               <Icon name="arrow-up" size="small" />

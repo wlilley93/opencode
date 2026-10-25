@@ -15,6 +15,7 @@ export function BoltrigLearning() {
   const data = useBoltrig()
   const language = useLanguage()
   const [tab, setTab] = createSignal<(typeof tabs)[number]>("graph")
+  const [pane, setPane] = createSignal<"chat" | "research">("chat")
   const research = () => data.state.research[TEAM]
   const notServed = () => {
     const state = research()
@@ -31,16 +32,34 @@ export function BoltrigLearning() {
   onMount(() => void data.loadResearch(TEAM))
 
   return (
-    <div data-slot="boltrig-learning" class="flex min-h-0 flex-1">
-      <BoltrigConversation teamId={TEAM} />
-      <aside class="flex w-[480px] shrink-0 flex-col border-s border-v2-border-border-base">
-        <div class="flex h-10 shrink-0 items-center gap-1 border-b border-v2-border-border-base px-2.5 text-[12.5px]">
+    <div data-slot="boltrig-learning" class="flex min-h-0 flex-1 max-[700px]:flex-col">
+      <div class="hidden h-12 shrink-0 items-center gap-1 border-b border-v2-border-border-base px-2 max-[700px]:flex">
+        <For each={["chat", "research"] as const}>
+          {(item) => (
+            <button
+              type="button"
+              onClick={() => setPane(item)}
+              class={`min-h-11 min-w-11 rounded-[7px] px-4 text-[13px] ${pane() === item ? "bg-v2-overlay-simple-overlay-hover text-v2-text-text-base" : "text-v2-text-text-muted"}`}
+            >
+              {language.t(`boltrig.learning.pane.${item}`)}
+            </button>
+          )}
+        </For>
+      </div>
+      <div classList={{ "max-[700px]:hidden": pane() === "research" }} class="flex min-h-0 min-w-0 flex-1 flex-col">
+        <BoltrigConversation teamId={TEAM} />
+      </div>
+      <aside
+        classList={{ "max-[700px]:hidden": pane() === "chat" }}
+        class="flex w-[480px] shrink-0 flex-col border-s border-v2-border-border-base max-[700px]:min-h-0 max-[700px]:w-full max-[700px]:flex-1 max-[700px]:border-s-0"
+      >
+        <div class="flex h-10 shrink-0 items-center gap-1 overflow-x-auto border-b border-v2-border-border-base px-2.5 text-[12.5px] max-[700px]:h-12">
           <For each={tabs}>
             {(item) => (
               <button
                 type="button"
                 onClick={() => setTab(item)}
-                class={`rounded-[5px] px-2.5 py-0.5 ${tab() === item ? "bg-v2-overlay-simple-overlay-hover text-v2-text-text-base" : "text-v2-text-text-muted"}`}
+                class={`rounded-[5px] px-2.5 py-0.5 max-[700px]:min-h-11 max-[700px]:px-3.5 ${tab() === item ? "bg-v2-overlay-simple-overlay-hover text-v2-text-text-base" : "text-v2-text-text-muted"}`}
               >
                 {language.t(`boltrig.learning.tab.${item}`)}
               </button>
@@ -50,7 +69,7 @@ export function BoltrigLearning() {
             <button
               type="button"
               onClick={() => void data.loadResearch(TEAM)}
-              class="ms-auto rounded-[5px] px-2 py-0.5 text-xs text-v2-text-text-faint hover:text-v2-text-text-base"
+              class="ms-auto rounded-[5px] px-2 py-0.5 text-xs whitespace-nowrap text-v2-text-text-faint hover:text-v2-text-text-base max-[700px]:min-h-11 max-[700px]:px-3"
             >
               {language.t("boltrig.research.reload")}
             </button>
@@ -236,10 +255,11 @@ function GraphPane(props: { view: ResearchView }) {
       {(value) => (
         <>
           <Show when={value().nodes.length > 0} fallback={<div class="text-xs text-v2-text-text-faint">{language.t("boltrig.research.empty")}</div>}>
+            <div data-slot="boltrig-research-graph-scroll" class="shrink-0 overflow-auto rounded-[8px] border border-v2-border-border-base bg-v2-background-bg-layer-01">
             <svg
               data-slot="boltrig-research-graph"
               viewBox={`0 0 ${W} ${H}`}
-              class="w-full shrink-0 rounded-[8px] border border-v2-border-border-base bg-v2-background-bg-layer-01 text-v2-text-text-base"
+              class="w-full text-v2-text-text-base max-[700px]:min-w-[640px]"
               onClick={(event) => event.target === event.currentTarget && setSelected(undefined)}
             >
               <For each={layout()!.edges}>
@@ -291,6 +311,7 @@ function GraphPane(props: { view: ResearchView }) {
                 }}
               </For>
             </svg>
+            </div>
           </Show>
 
           <div data-slot="boltrig-research-legend" class="flex flex-col gap-1.5 text-xs text-v2-text-text-muted">

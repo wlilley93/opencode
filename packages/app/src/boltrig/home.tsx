@@ -70,7 +70,7 @@ export function BoltrigHome(props: { onSelect: (selection: BoltrigSelection) => 
   })
 
   return (
-    <div data-slot="boltrig-home" class="flex flex-1 flex-col items-center overflow-y-auto pt-[120px] pb-10">
+    <div data-slot="boltrig-home" class="flex flex-1 flex-col items-center overflow-y-auto pt-[120px] pb-10 max-[700px]:pt-10">
       <div class="mb-3.5">
         <Tile large>{language.t("boltrig.double.initial")}</Tile>
       </div>
@@ -80,7 +80,7 @@ export function BoltrigHome(props: { onSelect: (selection: BoltrigSelection) => 
           ? language.t("boltrig.home.nothingWaiting")
           : language.plural("boltrig.home.waiting", waiting())}
       </div>
-      <div class="w-[640px] max-w-[calc(100%-48px)]">
+      <div class="w-[640px] max-w-[calc(100%-48px)] max-[700px]:max-w-[calc(100%-24px)]">
         <BoltrigComposer
           placeholder={language.t("boltrig.composer.ask", { name: chosenName() || language.t("boltrig.double.name") })}
           target={chosenName()}
@@ -95,13 +95,13 @@ export function BoltrigHome(props: { onSelect: (selection: BoltrigSelection) => 
           }}
         />
         <Show when={runningTeams().length > 1}>
-          <div class="-mt-5 mb-2 flex gap-1.5 px-0.5 text-[11.5px]">
+          <div class="-mt-5 mb-2 flex flex-wrap gap-1.5 px-0.5 text-[11.5px] max-[700px]:mt-1">
             <For each={runningTeams()}>
               {(team) => (
                 <button
                   type="button"
                   onClick={() => setTarget(team.teamId)}
-                  class={`rounded-full border px-2 py-px ${
+                  class={`rounded-full border px-2 py-px max-[700px]:min-h-11 max-[700px]:min-w-11 max-[700px]:px-4 ${
                     chosen() === team.teamId
                       ? "border-v2-border-border-strong bg-v2-overlay-simple-overlay-hover text-v2-text-text-base"
                       : "border-v2-border-border-base text-v2-text-text-faint"
@@ -120,7 +120,7 @@ export function BoltrigHome(props: { onSelect: (selection: BoltrigSelection) => 
               <button
                 type="button"
                 onClick={() => props.onSelect(item.go)}
-                class="flex h-[34px] w-full items-center gap-2.5 rounded-[7px] px-2.5 text-left text-v2-text-text-muted hover:bg-v2-overlay-simple-overlay-hover"
+                class="flex h-[34px] w-full items-center gap-2.5 rounded-[7px] px-2.5 text-left text-v2-text-text-muted max-[700px]:h-11 hover:bg-v2-overlay-simple-overlay-hover"
               >
                 <span class="flex w-[92px] shrink-0 items-center gap-1 text-xs text-v2-text-text-faint">
                   <Icon name={modeOf(item.mode).icon} size="small" />

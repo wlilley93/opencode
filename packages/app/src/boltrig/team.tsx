@@ -1,4 +1,5 @@
-import { createEffect, createMemo, For, Match, Show, Switch, type JSX } from "solid-js"
+import { Icon } from "@opencode/ui/icon"
+import { createEffect, createMemo, createSignal, For, Match, Show, Switch, type JSX } from "solid-js"
 import { useLanguage } from "@/runtime/i18n/language"
 import { known, type AgentRow, type TreeRole } from "./api"
 import { BoltrigConversation, TurnBlock } from "./conversation"
@@ -126,15 +127,21 @@ export function BoltrigTeam(props: {
   const selectedRole = createMemo(() => roles().find((role) => role.roleId === props.roleId) ?? data.head(props.teamId))
   const live = () => roles().filter((role) => isLive(data.agent(props.teamId, role.roleId))).length
   const head = () => data.head(props.teamId)
+  // On a phone the roster and the agent are two screens, not two columns: tapping a role opens the agent.
+  const [agentOpen, setAgentOpen] = createSignal(false)
+  createEffect(() => {
+    props.teamId
+    setAgentOpen(!!props.roleId && !props.talk)
+  })
 
   return (
     <div data-slot="boltrig-team" class="flex min-h-0 flex-1">
-      <div class="flex min-w-0 flex-1 flex-col">
-        <div class="flex h-10 shrink-0 items-center gap-1 border-b border-v2-border-border-base px-4 text-[12.5px]">
+      <div classList={{ "max-[700px]:hidden": agentOpen() }} class="flex min-w-0 flex-1 flex-col">
+        <div class="flex h-10 shrink-0 items-center gap-1 overflow-x-auto border-b border-v2-border-border-base px-4 text-[12.5px] max-[700px]:h-12 max-[700px]:px-2">
           <button
             type="button"
             onClick={() => props.onSelect({ kind: "team", teamId: props.teamId, roleId: props.roleId })}
-            class={`rounded-[5px] px-2.5 py-0.5 ${!props.talk ? "bg-v2-overlay-simple-overlay-hover text-v2-text-text-base" : "text-v2-text-text-muted"}`}
+            class={`rounded-[5px] px-2.5 py-0.5 whitespace-nowrap max-[700px]:min-h-11 max-[700px]:px-3.5 ${!props.talk ? "bg-v2-overlay-simple-overlay-hover text-v2-text-text-base" : "text-v2-text-text-muted"}`}
           >
             {language.t("boltrig.team.roster")}
           </button>
@@ -143,7 +150,7 @@ export function BoltrigTeam(props: {
               <button
                 type="button"
                 onClick={() => props.onSelect({ kind: "team", teamId: props.teamId, roleId: props.roleId, talk: true })}
-                class={`rounded-[5px] px-2.5 py-0.5 ${props.talk ? "bg-v2-overlay-simple-overlay-hover text-v2-text-text-base" : "text-v2-text-text-muted"}`}
+                class={`rounded-[5px] px-2.5 py-0.5 whitespace-nowrap max-[700px]:min-h-11 max-[700px]:px-3.5 ${props.talk ? "bg-v2-overlay-simple-overlay-hover text-v2-text-text-base" : "text-v2-text-text-muted"}`}
               >
                 {language.t("boltrig.team.talk", { name: data.roleName(role()) })}
               </button>
@@ -155,7 +162,7 @@ export function BoltrigTeam(props: {
           fallback={<BoltrigConversation teamId={props.teamId} />}
         >
           <div class="min-h-0 flex-1 overflow-y-auto">
-            <div class="mx-auto w-[640px] max-w-[calc(100%-48px)] py-8">
+            <div class="mx-auto w-[640px] max-w-[calc(100%-48px)] max-[700px]:max-w-[calc(100%-24px)] py-8">
               <div class="mb-6 flex items-start gap-3.5">
                 <Tile large>{initialOf(team()?.displayName ?? props.teamId)}</Tile>
                 <div>
@@ -173,6 +180,8 @@ export function BoltrigTeam(props: {
                 </div>
               </div>
 
+              <div data-slot="boltrig-roster" class="overflow-x-auto">
+              <div class="min-w-[560px]">
               <div class="grid grid-cols-[minmax(0,1.4fr)_70px_minmax(0,1fr)_minmax(0,1fr)_16px] items-center gap-x-3 px-2.5 pb-1.5 text-xs text-v2-text-text-faint">
                 <span>{language.t("boltrig.team.col.role")}</span>
                 <span>{language.t("boltrig.team.col.tier")}</span>
@@ -187,7 +196,10 @@ export function BoltrigTeam(props: {
                   return (
                     <button
                       type="button"
-                      onClick={() => props.onSelect({ kind: "team", teamId: props.teamId, roleId: role.roleId })}
+                      onClick={() => {
+                        props.onSelect({ kind: "team", teamId: props.teamId, roleId: role.roleId })
+                        setAgentOpen(true)
+                      }}
                       class={`grid min-h-[44px] w-full grid-cols-[minmax(0,1.4fr)_70px_minmax(0,1fr)_minmax(0,1fr)_16px] items-center gap-x-3 rounded-[7px] px-2.5 py-1.5 text-left hover:bg-v2-overlay-simple-overlay-hover ${
                         selectedRole()?.roleId === role.roleId ? "bg-v2-overlay-simple-overlay-hover" : ""
                       }`}
@@ -219,6 +231,8 @@ export function BoltrigTeam(props: {
                   )
                 }}
               </For>
+              </div>
+              </div>
               <Show when={data.state.agents.error}>{(kind) => <RowError kind={kind()} />}</Show>
 
               <div class="mt-6">
@@ -230,7 +244,18 @@ export function BoltrigTeam(props: {
           </div>
         </Show>
       </div>
-      <aside class="w-[400px] shrink-0 overflow-y-auto border-s border-v2-border-border-base">
+      <aside
+        classList={{ "max-[700px]:hidden": !agentOpen() }}
+        class="w-[400px] shrink-0 overflow-y-auto border-s border-v2-border-border-base max-[700px]:w-full max-[700px]:border-s-0"
+      >
+        <button
+          type="button"
+          onClick={() => setAgentOpen(false)}
+          class="hidden h-11 items-center gap-1 px-3 text-v2-text-text-muted max-[700px]:flex"
+        >
+          <Icon name="chevron-left" size="small" />
+          {language.t("boltrig.team.roster")}
+        </button>
         <Show
           when={selectedRole()}
           fallback={<div class="p-4 text-v2-text-text-faint">{language.t("boltrig.team.noRoles")}</div>}

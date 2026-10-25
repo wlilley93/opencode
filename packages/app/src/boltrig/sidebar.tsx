@@ -25,7 +25,7 @@ function Row(props: {
       data-selected={props.selected ? "" : undefined}
       onClick={() => props.onClick?.()}
       class={`
-        flex h-7 w-full shrink-0 items-center gap-2.5 rounded-md px-2 text-left text-[13px] whitespace-nowrap
+        flex h-7 w-full shrink-0 items-center gap-2.5 rounded-md px-2 text-left text-[13px] whitespace-nowrap max-[700px]:h-11 max-[700px]:text-sm
         ${props.indent ? "ps-[30px]" : ""}
         ${props.selected ? "bg-v2-overlay-simple-overlay-hover text-v2-text-text-base" : props.dim ? "text-v2-text-text-faint" : "text-v2-text-text-muted"}
         hover:bg-v2-overlay-simple-overlay-hover
@@ -59,21 +59,31 @@ function TeamRows(props: {
 
   return (
     <>
-      <Row
-        selected={selected(undefined)}
-        dim={tree()?.value?.state === "not_running"}
-        onClick={() => {
-          setOpen(!open() || !selected(undefined))
-          props.onSelect({ kind: "team", teamId: props.teamId })
-        }}
-      >
-        <Icon name={open() ? "chevron-down" : "chevron-right"} size="small" class="text-v2-icon-icon-muted" />
-        <Tile>{initialOf(props.name)}</Tile>
-        {props.name}
-        <Show when={tree()?.value?.state === "not_running"}>
-          <span class="ms-auto text-[11.5px] text-v2-text-text-faint">{language.t("boltrig.team.stopped")}</span>
-        </Show>
-      </Row>
+      <div class="flex items-center [&>[data-slot=boltrig-nav-row]]:shrink">
+        <button
+          type="button"
+          aria-label={language.t(open() ? "boltrig.team.collapse" : "boltrig.team.expand", { team: props.name })}
+          aria-expanded={open()}
+          onClick={() => setOpen(!open())}
+          class="grid size-7 shrink-0 place-items-center rounded-md text-v2-icon-icon-muted hover:bg-v2-overlay-simple-overlay-hover max-[700px]:size-11"
+        >
+          <Icon name={open() ? "chevron-down" : "chevron-right"} size="small" />
+        </button>
+        <Row
+          selected={selected(undefined)}
+          dim={tree()?.value?.state === "not_running"}
+          onClick={() => {
+            setOpen(true)
+            props.onSelect({ kind: "team", teamId: props.teamId })
+          }}
+        >
+          <Tile>{initialOf(props.name)}</Tile>
+          {props.name}
+          <Show when={tree()?.value?.state === "not_running"}>
+            <span class="ms-auto text-[11.5px] text-v2-text-text-faint">{language.t("boltrig.team.stopped")}</span>
+          </Show>
+        </Row>
+      </div>
       <Show when={open()}>
         <Show when={tree()?.error}>{(kind) => <RowError kind={kind()} />}</Show>
         <For each={data.roles(props.teamId)}>
@@ -100,6 +110,7 @@ function TeamRows(props: {
 }
 
 export function BoltrigSidebar(props: {
+  drawer?: boolean
   selection: BoltrigSelection
   onSelect: (selection: BoltrigSelection) => void
 }) {
@@ -112,14 +123,14 @@ export function BoltrigSidebar(props: {
   return (
     <aside
       data-slot="boltrig-sidebar"
-      class="flex w-[244px] shrink-0 flex-col overflow-y-auto py-2.5 ps-2.5 pe-2 text-v2-text-text-muted"
+      class={`flex shrink-0 flex-col overflow-y-auto py-2.5 ps-2.5 pe-2 text-v2-text-text-muted ${props.drawer ? "min-h-0 w-full flex-1" : "w-[244px]"}`}
     >
-      <div class="flex h-8 shrink-0 items-center gap-2 px-1.5 font-medium text-v2-text-text-base">
+      <div class="flex h-8 shrink-0 items-center gap-2 px-1.5 font-medium max-[700px]:h-11 text-v2-text-text-base">
         <Tile>{initialOf(person())}</Tile>
         <span class="truncate">{person()}</span>
         <button
           type="button"
-          class="ms-auto rounded px-1 text-xs font-normal text-v2-text-text-faint hover:text-v2-text-text-muted"
+          class="ms-auto rounded px-1 text-xs font-normal text-v2-text-text-faint hover:text-v2-text-text-muted max-[700px]:h-11 max-[700px]:min-w-11 max-[700px]:px-3 max-[700px]:text-[13px]"
           onClick={() => signOut()}
         >
           {language.t("boltrig.signout")}

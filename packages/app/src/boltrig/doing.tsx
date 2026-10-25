@@ -1,3 +1,4 @@
+import { Icon } from "@opencode/ui/icon"
 import { createMemo, createSignal, For, Show } from "solid-js"
 import { useLanguage } from "@/runtime/i18n/language"
 import type { WorkState } from "./api"
@@ -17,6 +18,8 @@ export function BoltrigDoing(props: { onSelect: (selection: BoltrigSelection) =>
   const words = useBoltrigWords()
   const works = () => data.state.works.value ?? []
   const [picked, setPicked] = createSignal<string>()
+  // On a phone the list and the work are two screens: a tapped work opens full width, with a way back.
+  const [detailOpen, setDetailOpen] = createSignal(false)
   const selected = createMemo(() => works().find((work) => work.id === picked()) ?? works().find((work) => work.status === "open"))
   const turnsOf = (workId: string) =>
     (data.state.turns.value ?? []).filter((turn) => turn.work === workId).sort((a, b) => b.receivedAt.localeCompare(a.receivedAt))
@@ -28,9 +31,9 @@ export function BoltrigDoing(props: { onSelect: (selection: BoltrigSelection) =>
 
   return (
     <div data-slot="boltrig-doing" class="flex min-h-0 flex-1">
-      <div class="flex min-w-0 flex-1 flex-col">
+      <div classList={{ "max-[700px]:hidden": detailOpen() }} class="flex min-w-0 flex-1 flex-col">
         <div class="min-h-0 flex-1 overflow-y-auto">
-          <div class="mx-auto w-[680px] max-w-[calc(100%-48px)] py-4">
+          <div class="mx-auto w-[680px] max-w-[calc(100%-48px)] max-[700px]:max-w-[calc(100%-24px)] py-4">
             <Show when={data.state.works.error}>{(kind) => <RowError kind={kind()} />}</Show>
             <Show when={data.state.works.value && works().length === 0}>
               <div class="py-8 text-center text-v2-text-text-faint">{language.t("boltrig.doing.empty")}</div>
@@ -53,12 +56,15 @@ export function BoltrigDoing(props: { onSelect: (selection: BoltrigSelection) =>
                           <button
                             type="button"
                             data-slot="boltrig-work-row"
-                            onClick={() => setPicked(work.id)}
-                            class={`flex h-[34px] w-full items-center gap-2.5 rounded-[7px] px-2.5 text-left hover:bg-v2-overlay-simple-overlay-hover ${
+                            onClick={() => {
+                              setPicked(work.id)
+                              setDetailOpen(true)
+                            }}
+                            class={`flex h-[34px] w-full items-center gap-2.5 rounded-[7px] px-2.5 text-left max-[700px]:h-11 hover:bg-v2-overlay-simple-overlay-hover ${
                               selected()?.id === work.id ? "bg-v2-overlay-simple-overlay-hover" : ""
                             }`}
                           >
-                            <span class="w-[70px] shrink-0 font-mono text-[11.5px] text-v2-text-text-faint">{work.id.slice(0, 8)}</span>
+                            <span class="w-[70px] shrink-0 font-mono max-[700px]:w-[64px] text-[11.5px] text-v2-text-text-faint">{work.id.slice(0, 8)}</span>
                             <span class="min-w-0 flex-1 truncate text-v2-text-text-base">
                               {language.t("boltrig.doing.title", { kind: work.origin.kind, team: work.origin.team })}
                             </span>
@@ -68,7 +74,7 @@ export function BoltrigDoing(props: { onSelect: (selection: BoltrigSelection) =>
                             <span class="shrink-0 text-xs text-v2-text-text-faint">
                               {language.plural("boltrig.doing.turns", turns().length)}
                             </span>
-                            <span class="w-[64px] shrink-0 text-end text-xs text-v2-text-text-faint">
+                            <span class="w-[64px] shrink-0 text-end text-xs text-v2-text-text-faint max-[700px]:w-[44px]">
                               {work.used}/{work.maxSteps}
                             </span>
                           </button>
@@ -81,7 +87,7 @@ export function BoltrigDoing(props: { onSelect: (selection: BoltrigSelection) =>
             </For>
           </div>
         </div>
-        <div class="mx-auto w-[680px] max-w-[calc(100%-48px)] shrink-0 pb-4">
+        <div class="mx-auto w-[680px] max-w-[calc(100%-48px)] max-[700px]:max-w-[calc(100%-24px)] shrink-0 pb-4">
           <BoltrigComposer
             placeholder={language.t("boltrig.composer.ask", {
               name: delivery() ? data.roleName(delivery()!) : language.t("boltrig.conversation.head"),
@@ -97,7 +103,18 @@ export function BoltrigDoing(props: { onSelect: (selection: BoltrigSelection) =>
           />
         </div>
       </div>
-      <aside class="w-[420px] shrink-0 overflow-y-auto border-s border-v2-border-border-base">
+      <aside
+        classList={{ "max-[700px]:hidden": !detailOpen() }}
+        class="w-[420px] shrink-0 overflow-y-auto border-s border-v2-border-border-base max-[700px]:w-full max-[700px]:border-s-0"
+      >
+        <button
+          type="button"
+          onClick={() => setDetailOpen(false)}
+          class="hidden h-11 items-center gap-1 px-3 text-v2-text-text-muted max-[700px]:flex"
+        >
+          <Icon name="chevron-left" size="small" />
+          {language.t("boltrig.doing.back")}
+        </button>
         <Show when={selected()} fallback={<div class="p-4 text-v2-text-text-faint">{language.t("boltrig.doing.pick")}</div>}>
           {(work) => (
             <div class="flex flex-col gap-3 p-4">
