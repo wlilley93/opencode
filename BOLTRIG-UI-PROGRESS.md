@@ -1,0 +1,19 @@
+# Boltrig UI progress (worktree opencode-boltrig-shell, branch boltrig-shell)
+
+Started 2026-10-25 from HEAD adc3df5.
+
+## Log
+- step 0: progress file created; inspecting existing boltrig/ files.
+- step 1: read handover (registered redirect per handover: http://127.0.0.1:42813/callback) and contract 2.0.0-pre.5 fixtures.
+- step 2: MEASURED authorize redirect: only http://127.0.0.1:42813/callback accepted (302 to login); 127.0.0.1:3000 and localhost:3000 -> 400. Token endpoint CORS allows origin http://127.0.0.1:42813. Client API has NO CORS (OPTIONS 405) -> browser needs same-origin proxy (vite).
+- step 3: no CORS on Client API -> plan: vite dev proxy /boltrig-api -> beelink; dev server on 127.0.0.1:42813 serving /callback (the one registered redirect). Concept HTML screenshots in scratchpad boltrig-ref/. Baseline typecheck clean. Playwright needs executablePath chromium_headless_shell-1248.
+- step 4: wrote api.ts (typed client, 13 ops incl. sessions/runs/steps), auth.ts (PKCE + pasted dev token, sessionStorage), model.ts (live store, polling), composer/parts/signin/sidebar/home/team/conversation/learning/shell. doing/interfacing stubs for M2. Next: i18n keys, route /callback, vite proxy, typecheck.
+- step 5 (M1 done): commits 372929a, c8fa7c5, + fix commit. Dev server: bun run dev -- --host 127.0.0.1 --port 42813. Proxy measured: hello 200, viewer.get 401 without token. OIDC from app: discovery 200, authorize 302 -> Authentik identification stage with redirect_uri=http://127.0.0.1:42813/callback (cannot complete without Will's credentials; Chrome extension not connected). Typecheck clean. Unit tests 527 pass/36 fail/35 errors and browser 17 errors, IDENTICAL on baseline adc3df5 copy (bun 1.4.3 jsxDEV env issue). Screenshots (fixture-backed for signed-in screens) in screenshots/.
+- step 6 (M2 done): Doing + Interfacing committed; all 16 screenshots (signin live, others fixture-backed) in screenshots/, untracked. Figma MCP calls: 0 (used concept HTML screenshots).
+
+## research.view.get (started 2026-10-25 from HEAD 5b04a34)
+- step 0: section created; reading contract 2.0.0-pre.6, ADR 0109, api.ts, learning.tsx, concept frames.
+- step 1: commit 035c8cc: api.ts research types, per-call minor, hello asks 3; research.fixture.ts (contract bodies satisfies-typed + paged generator). Measured: live hello asking 3 -> negotiated 2, supported [0,1,2] (200). typecheck clean.
+- step 2: commit (model) negotiation + loadResearch/walkResearch; commit (screens) learning.tsx graph/leads, i18n, stories text. typecheck clean after each.
+- step 3: fixture screenshots (route-intercepted, research.fixture.ts generator, 180 nodes/240 edges/14 leads, page size 100) in screenshots/learning-graph-{dark,light}, learning-leads-{dark,light}, learning-graph-not-served-{dark,light} (server answering minor 2). MEASURED headers: hello/viewer.get at boltrig.human/2.2, capabilities.get + research.view.get at 2.3; 3 pages walked; minor-2 server: no capabilities/research call made. Real-size check (840 nodes/1,107 edges, 2 pages): click-to-graph 241-249 ms, 840 circles (learning-graph-large-dark.png). Scripts in scratchpad research-shots.mjs / research-large.mjs.
+- step 4 (done): commits 035c8cc, a3885df, 9ae793b. Not done: no live 2.3 call measured (server offers [0,1,2]); claim ids not served by op; files/review panes unchanged; no unit tests added; nothing pushed.
