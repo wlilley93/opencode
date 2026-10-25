@@ -1,4 +1,5 @@
 import { DESKTOP_NATIVE_ENGLISH } from "./desktop-native"
+import { BOLTRIG_ENGLISH } from "./boltrig-en"
 
 export const dict = {
   "experiment.voiceCalls": "Voice calls",
@@ -19,6 +20,7 @@ export const dict = {
   "voice.failure.dropped": "The call disconnected.",
   "voice.failure.connection": "Couldn’t connect the call.",
   ...DESKTOP_NATIVE_ENGLISH,
+  ...BOLTRIG_ENGLISH,
   "session.location.unavailable": "Session location unavailable",
   "session.location.description": "Choose another directory to continue this session.",
   "session.location.choose": "Choose directory",

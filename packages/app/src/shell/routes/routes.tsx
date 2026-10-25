@@ -48,12 +48,15 @@ export function preloadRoute(url: string) {
 }
 
 const BoltrigRoute = lazy(() => import("@/boltrig/shell").then((module) => ({ default: module.BoltrigRoute })))
+const BoltrigCallback = lazy(() => import("@/boltrig/signin").then((module) => ({ default: module.BoltrigCallback })))
 
 export function AppRoutes() {
   return (
     <>
-      {/* The Boltrig shell runs on mock data, so it sits outside the server-gated layout. */}
+      {/* The Boltrig shell talks to a Boltrig server, not an OpenCode one, so it sits outside the server-gated layout.
+          /callback is the one redirect Authentik accepts for the Boltrig web client (http://127.0.0.1:42813/callback). */}
       <Route path="/boltrig" component={BoltrigRoute} />
+      <Route path="/callback" component={BoltrigCallback} />
       <Route component={AppLayout}>
         <Route path="/" component={Home} />
         <Route path="/settings" component={SettingsScreen} />

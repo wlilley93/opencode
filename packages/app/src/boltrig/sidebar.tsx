@@ -1,16 +1,15 @@
 import { Icon } from "@opencode/ui/icon"
 import { createSignal, For, Show, type JSX } from "solid-js"
-import { modes, person, worlds, type ModeID, type Team } from "./model"
+import { useLanguage } from "@/runtime/i18n/language"
+import { signOut } from "./auth"
+import { initialOf, isLive, modes, useBoltrig, type ModeID } from "./model"
+import { Dot, RowError, Tile } from "./parts"
 
-export type BoltrigSelection = { kind: "home" } | { kind: "mode"; mode: ModeID } | { kind: "agent"; id: string }
-
-function Tile(props: { children: JSX.Element }) {
-  return (
-    <span class="grid size-[18px] shrink-0 place-items-center rounded-[5px] bg-v2-background-bg-layer-03 text-[10px] leading-none font-semibold text-v2-text-text-base">
-      {props.children}
-    </span>
-  )
-}
+export type BoltrigSelection =
+  | { kind: "home" }
+  | { kind: "inbox" }
+  | { kind: "mode"; mode: ModeID }
+  | { kind: "team"; teamId: string; roleId?: string; talk?: boolean }
 
 function Row(props: {
   selected?: boolean
@@ -26,7 +25,7 @@ function Row(props: {
       data-selected={props.selected ? "" : undefined}
       onClick={() => props.onClick?.()}
       class={`
-        flex h-7 w-full items-center gap-2.5 rounded-md px-2 text-left text-[13px] whitespace-nowrap
+        flex h-7 w-full shrink-0 items-center gap-2.5 rounded-md px-2 text-left text-[13px] whitespace-nowrap
         ${props.indent ? "ps-[30px]" : ""}
         ${props.selected ? "bg-v2-overlay-simple-overlay-hover text-v2-text-text-base" : props.dim ? "text-v2-text-text-faint" : "text-v2-text-text-muted"}
         hover:bg-v2-overlay-simple-overlay-hover
@@ -39,36 +38,61 @@ function Row(props: {
 
 function Group(props: { children: JSX.Element }) {
   return (
-    <div class="mt-3.5 flex h-[26px] items-center gap-1 px-2 text-xs text-v2-text-text-faint">{props.children}</div>
+    <div class="mt-3.5 flex h-[26px] shrink-0 items-center gap-1 px-2 text-xs text-v2-text-text-faint">
+      {props.children}
+    </div>
   )
 }
 
-function TeamRows(props: { team: Team; selection: BoltrigSelection; onSelect: (selection: BoltrigSelection) => void }) {
-  const [open, setOpen] = createSignal(props.team.id === "research")
+function TeamRows(props: {
+  teamId: string
+  name: string
+  selection: BoltrigSelection
+  onSelect: (selection: BoltrigSelection) => void
+}) {
+  const data = useBoltrig()
+  const language = useLanguage()
+  const [open, setOpen] = createSignal(props.teamId === "research")
+  const tree = () => data.state.trees[props.teamId]
+  const selected = (roleId?: string) =>
+    props.selection.kind === "team" && props.selection.teamId === props.teamId && props.selection.roleId === roleId
 
   return (
     <>
-      <Row onClick={() => setOpen(!open())}>
+      <Row
+        selected={selected(undefined)}
+        dim={tree()?.value?.state === "not_running"}
+        onClick={() => {
+          setOpen(!open() || !selected(undefined))
+          props.onSelect({ kind: "team", teamId: props.teamId })
+        }}
+      >
         <Icon name={open() ? "chevron-down" : "chevron-right"} size="small" class="text-v2-icon-icon-muted" />
-        <Tile>{props.team.name[0]}</Tile>
-        {props.team.name}
+        <Tile>{initialOf(props.name)}</Tile>
+        {props.name}
+        <Show when={tree()?.value?.state === "not_running"}>
+          <span class="ms-auto text-[11.5px] text-v2-text-text-faint">{language.t("boltrig.team.stopped")}</span>
+        </Show>
       </Row>
       <Show when={open()}>
-        <For each={props.team.agents}>
-          {(agent) => (
-            <Row
-              indent
-              dim={!agent.live}
-              selected={props.selection.kind === "agent" && props.selection.id === agent.id}
-              onClick={() => props.onSelect({ kind: "agent", id: agent.id })}
-            >
-              {agent.name}
-              {/* A filled dot is a running agent; a ring is a drafted profile that is not running yet. */}
-              <span
-                class={`ms-auto size-1.5 rounded-full ${agent.live ? "bg-v2-text-text-muted" : "border border-v2-border-border-strong"}`}
-              />
-            </Row>
-          )}
+        <Show when={tree()?.error}>{(kind) => <RowError kind={kind()} />}</Show>
+        <For each={data.roles(props.teamId)}>
+          {(role) => {
+            const row = () => data.agent(props.teamId, role.roleId)
+            return (
+              <Row
+                indent
+                dim={!isLive(row())}
+                selected={selected(role.roleId)}
+                onClick={() => props.onSelect({ kind: "team", teamId: props.teamId, roleId: role.roleId })}
+              >
+                <span class="truncate">{data.roleName(role)}</span>
+                <span class="ms-auto flex items-center">
+                  <Dot live={isLive(row())} needsYou={row()?.executionStatus === "blocked"} />
+                </span>
+              </Row>
+            )
+          }}
         </For>
       </Show>
     </>
@@ -79,84 +103,75 @@ export function BoltrigSidebar(props: {
   selection: BoltrigSelection
   onSelect: (selection: BoltrigSelection) => void
 }) {
+  const data = useBoltrig()
+  const language = useLanguage()
   const modeSelected = (mode: ModeID) => props.selection.kind === "mode" && props.selection.mode === mode
+  const person = () => data.state.viewer?.person.displayName ?? ""
+  const waiting = () => data.state.uncertain.value?.length ?? 0
 
   return (
     <aside
       data-slot="boltrig-sidebar"
-      class="flex w-[244px] shrink-0 flex-col py-2.5 ps-2.5 pe-2 text-v2-text-text-muted"
+      class="flex w-[244px] shrink-0 flex-col overflow-y-auto py-2.5 ps-2.5 pe-2 text-v2-text-text-muted"
     >
-      <div class="flex h-8 items-center gap-2 px-1.5 font-medium text-v2-text-text-base">
-        <Tile>{person.initial}</Tile>
-        {person.name}
-        <Icon name="chevron-down" size="small" class="text-v2-icon-icon-muted" />
-        <span class="ms-auto flex gap-0.5 text-v2-icon-icon-muted">
-          <Icon name="magnifying-glass" />
-          <Icon name="new-session" />
-        </span>
+      <div class="flex h-8 shrink-0 items-center gap-2 px-1.5 font-medium text-v2-text-text-base">
+        <Tile>{initialOf(person())}</Tile>
+        <span class="truncate">{person()}</span>
+        <button
+          type="button"
+          class="ms-auto rounded px-1 text-xs font-normal text-v2-text-text-faint hover:text-v2-text-text-muted"
+          onClick={() => signOut()}
+        >
+          {language.t("boltrig.signout")}
+        </button>
       </div>
-      <div class="h-2" />
+      <div class="h-2 shrink-0" />
       <Row selected={props.selection.kind === "home"} onClick={() => props.onSelect({ kind: "home" })}>
-        <Tile>{person.double.name[0]}</Tile>
-        {person.double.name}
-        <span class="ms-auto text-[11.5px] text-v2-text-text-faint">your double</span>
+        <Tile>{language.t("boltrig.double.initial")}</Tile>
+        {language.t("boltrig.double.name")}
       </Row>
-      <Row>
+      <Row selected={props.selection.kind === "inbox"} onClick={() => props.onSelect({ kind: "inbox" })}>
         <Icon name="archive" class="text-v2-icon-icon-muted" />
-        Inbox
-        <span class="ms-auto size-1.5 rounded-full bg-v2-text-text-accent" />
+        {language.t("boltrig.inbox")}
+        <Show when={waiting() > 0}>
+          <span class="ms-auto flex items-center gap-1.5 text-[11.5px] text-v2-text-text-faint">
+            {waiting()}
+            <Dot needsYou />
+          </span>
+        </Show>
       </Row>
 
-      <Group>Modes</Group>
+      <Group>{language.t("boltrig.modes")}</Group>
       <For each={modes}>
         {(mode) => (
           <Row selected={modeSelected(mode.id)} onClick={() => props.onSelect({ kind: "mode", mode: mode.id })}>
             <Icon name={mode.icon} class="text-v2-icon-icon-muted" />
-            {mode.label}
-            <span class="ms-auto text-[11.5px] text-v2-text-text-faint">{mode.hint}</span>
+            {language.t(`boltrig.mode.${mode.id}`)}
+            <span class="ms-auto text-[11.5px] text-v2-text-text-faint">
+              {language.t(`boltrig.mode.${mode.id}.hint`)}
+            </span>
           </Row>
         )}
       </For>
 
-      <Group>
-        {person.double.name}'s team
-        <Icon name="chevron-down" size="small" />
-      </Group>
-      <For each={person.team}>
-        {(agent) => (
-          <Row
-            selected={props.selection.kind === "agent" && props.selection.id === agent.id}
-            onClick={() => props.onSelect({ kind: "agent", id: agent.id })}
-          >
-            <Tile>{agent.name[0]}</Tile>
-            {agent.name}
-          </Row>
-        )}
-      </For>
+      <Group>{language.t("boltrig.yourTeam")}</Group>
       <Row dim>
-        <Icon name="plus-small" />
-        Add an agent
+        <Icon name="plus" size="small" />
+        {language.t("boltrig.addAgent")}
       </Row>
 
-      <For each={worlds}>
-        {(world) => (
-          <>
-            <Group>
-              {world.name}
-              <Icon name="chevron-down" size="small" />
-            </Group>
-            <For each={world.teams}>
-              {(team) => <TeamRows team={team} selection={props.selection} onSelect={props.onSelect} />}
-            </For>
-          </>
+      <Group>{language.t("boltrig.teams")}</Group>
+      <For each={data.teams()}>
+        {(team) => (
+          <TeamRows teamId={team.teamId} name={team.displayName} selection={props.selection} onSelect={props.onSelect} />
         )}
       </For>
 
-      <div class="mt-auto">
-        <Row>
+      <div class="mt-auto shrink-0 pt-3">
+        <div class="flex h-7 items-center gap-2.5 px-2 text-[11.5px] text-v2-text-text-faint">
           <Icon name="monitor" class="text-v2-icon-icon-muted" />
-          Connect a server
-        </Row>
+          <span class="truncate">{language.t("boltrig.server")}</span>
+        </div>
       </div>
     </aside>
   )

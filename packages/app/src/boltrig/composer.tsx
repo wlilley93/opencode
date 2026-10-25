@@ -1,59 +1,63 @@
 import { Icon } from "@opencode/ui/icon"
-import { createSignal, For } from "solid-js"
+import { createStore } from "solid-js/store"
+import { Show } from "solid-js"
+import { useLanguage } from "@/runtime/i18n/language"
 
-const permissions = ["Ask", "Plan", "Auto"] as const
-
-// The one-line composer, in OpenCode's shape: permission mode above, lane and effort beside the input, a meter below.
+// The composer, in OpenCode's shape: the box with a placeholder, a row under it with who it reaches and the send
+// button, and a meter line below. Ask / Plan / Auto and effort are left out until the contract carries a mode:
+// a control that changes nothing on the server would be a lie.
 export function BoltrigComposer(props: {
   placeholder: string
-  lane: string
+  target: string
   meter: string
-  mode?: (typeof permissions)[number]
+  disabled?: boolean
+  disabledReason?: string
+  onSend: (text: string) => Promise<void> | void
 }) {
-  const [mode, setMode] = createSignal(props.mode ?? "Ask")
+  const language = useLanguage()
+  const [draft, setDraft] = createStore({ text: "", sending: false })
+
+  const submit = async () => {
+    const text = draft.text.trim()
+    if (!text || draft.sending || props.disabled) return
+    setDraft({ sending: true })
+    try {
+      await props.onSend(text)
+      setDraft({ text: "" })
+    } finally {
+      setDraft({ sending: false })
+    }
+  }
 
   return (
     <div data-slot="boltrig-composer" class="w-full">
-      <div class="mb-2 inline-flex gap-0.5 rounded-[7px] border border-v2-border-border-base bg-v2-background-bg-layer-01 p-0.5">
-        <For each={permissions}>
-          {(item) => (
-            <button
-              type="button"
-              onClick={() => setMode(item)}
-              class={`rounded-[5px] px-2.5 py-0.5 text-[12.5px] ${
-                mode() === item
-                  ? "bg-v2-overlay-simple-overlay-hover text-v2-text-text-base"
-                  : "text-v2-text-text-muted"
-              }`}
-            >
-              {item}
-            </button>
-          )}
-        </For>
-      </div>
       <div class="rounded-[10px] border border-v2-border-border-strong bg-v2-background-bg-layer-01 px-3 pt-3 pb-2">
         <textarea
-          rows={1}
-          placeholder={props.placeholder}
-          class="h-[30px] w-full resize-none bg-transparent text-[13px] text-v2-text-text-base outline-none placeholder:text-v2-text-text-faint"
+          rows={2}
+          value={draft.text}
+          disabled={props.disabled}
+          placeholder={props.disabled ? (props.disabledReason ?? props.placeholder) : props.placeholder}
+          aria-label={props.placeholder}
+          onInput={(event) => setDraft({ text: event.currentTarget.value })}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" || event.shiftKey || event.isComposing) return
+            event.preventDefault()
+            void submit()
+          }}
+          class="min-h-[40px] w-full resize-none bg-transparent text-[13px] leading-[var(--line-height-base)] text-v2-text-text-base outline-none placeholder:text-v2-text-text-faint"
         />
-        <div class="flex items-center gap-3.5 text-[12.5px] text-v2-text-text-muted">
-          <Icon name="plus" />
-          <span class="inline-flex items-center gap-1">
-            {props.lane}
-            <Icon name="chevron-down" size="small" />
-          </span>
-          <span class="inline-flex items-center gap-1">
-            High
-            <Icon name="chevron-down" size="small" />
-          </span>
-          <Icon name="waveform" class="ms-auto" />
+        <div class="flex h-[26px] items-center gap-3.5 text-[12.5px] text-v2-text-text-muted">
+          <span class="truncate">{props.target}</span>
           <button
             type="button"
-            aria-label="Send"
-            class="grid size-[26px] place-items-center rounded-[7px] bg-v2-text-text-accent text-v2-background-bg-base"
+            aria-label={language.t("boltrig.composer.send")}
+            disabled={props.disabled || draft.sending || !draft.text.trim()}
+            onClick={() => void submit()}
+            class="ms-auto grid size-[26px] shrink-0 place-items-center rounded-[7px] bg-v2-text-text-accent text-v2-background-bg-base disabled:opacity-40"
           >
-            <Icon name="arrow-up" size="small" />
+            <Show when={!draft.sending} fallback={<Icon name="status" size="small" />}>
+              <Icon name="arrow-up" size="small" />
+            </Show>
           </button>
         </div>
       </div>
