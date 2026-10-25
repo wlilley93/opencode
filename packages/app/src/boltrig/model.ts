@@ -53,7 +53,9 @@ export type Message = {
   workId: string
   text: string
   sentAt: string
-  state: "sending" | SendResponse["state"] | "failed"
+  // lost: no answer came back, so the server may or may not hold it; not_received: reconcile says it does not.
+  state: "sending" | SendResponse["state"] | "failed" | "lost" | "not_received"
+  roleId?: string
   position?: number
   error?: ApiErrorKind
 }
@@ -102,7 +104,14 @@ const CONVERSATIONS_KEY = "boltrig.conversations"
 
 function readConversations(): Record<string, Conversation> {
   try {
-    return JSON.parse(sessionStorage.getItem(CONVERSATIONS_KEY) ?? "{}") as Record<string, Conversation>
+    const saved = JSON.parse(sessionStorage.getItem(CONVERSATIONS_KEY) ?? "{}") as Record<string, Conversation>
+    // A send in flight when the tab went away is a lost send: its answer will never arrive here.
+    Object.values(saved).forEach((conversation) =>
+      conversation.messages.forEach((message) => {
+        if (message.state === "sending") message.state = "lost"
+      }),
+    )
+    return saved
   } catch {
     return {}
   }
@@ -298,6 +307,7 @@ export function createBoltrigData() {
     const message: Message = {
       key: uuid(),
       workId: existing?.messages.at(-1)?.workId ?? uuid(),
+      roleId,
       text: body,
       sentAt: new Date().toISOString(),
       state: "sending",
@@ -318,23 +328,80 @@ export function createBoltrigData() {
         bearer,
       ),
     )
+    if ("error" in result) {
+      // No answer (network) or a source that did not answer (503): the server may have taken the message, so
+      // it is asked before anything is sent again.
+      const lost = result.error === "network" || result.error === "unavailable"
+      setState("conversations", teamId, "messages", (item) => item.key === message.key, {
+        state: lost ? "lost" : "failed",
+        error: result.error,
+      })
+      saveConversations()
+      if (lost) await reconcile(teamId, message.key)
+      return
+    }
+    applySend(teamId, message.key, result.value)
+    saveConversations()
+    void loadTurns()
+    void loadTranscript(teamId)
+  }
+
+  function applySend(teamId: string, key: string, response: SendResponse) {
     setState(
       produce((draft) => {
         const conversation = draft.conversations[teamId]!
-        const sent = conversation.messages.find((item) => item.key === message.key)!
-        if ("error" in result) {
-          sent.state = "failed"
-          sent.error = result.error
-          return
-        }
-        sent.state = result.value.state
-        sent.workId = result.value.workId
-        if (result.value.state === "queued") sent.position = result.value.position
-        conversation.sessionHandle = result.value.sessionHandle
+        const sent = conversation.messages.find((item) => item.key === key)!
+        sent.state = response.state
+        sent.error = undefined
+        sent.workId = response.workId
+        if (response.state === "queued") sent.position = response.position
+        conversation.sessionHandle = response.sessionHandle
       }),
     )
+  }
+
+  // conversation.reconcile: ask the server what became of a send by its idempotency key. Found: the message takes
+  // the state the server reports. 404: the server never received it, so a resend is safe. Anything else leaves it
+  // lost, and the person can ask again.
+  async function reconcile(teamId: string, key: string) {
+    const message = state.conversations[teamId]?.messages.find((item) => item.key === key)
+    if (!message) return
+    const result = await attempt((bearer) =>
+      call("conversation.reconcile", { teamId, roleId: message.roleId, idempotencyKey: key }, bearer),
+    )
+    if ("error" in result) {
+      setState("conversations", teamId, "messages", (item) => item.key === key, {
+        state: result.error === "not_found" ? "not_received" : "lost",
+        error: result.error,
+      })
+      return saveConversations()
+    }
+    applySend(teamId, key, result.value)
     saveConversations()
     void loadTurns()
+    void loadTranscript(teamId)
+  }
+
+  // A resend after reconcile said not_received: the old bubble goes, a fresh send (new key) replaces it.
+  async function resend(teamId: string, key: string) {
+    const message = state.conversations[teamId]?.messages.find((item) => item.key === key)
+    if (!message || message.state !== "not_received") return
+    setState("conversations", teamId, "messages", (items) => items.filter((item) => item.key !== key))
+    await send(teamId, message.text, message.roleId)
+  }
+
+  // A conversation this tab did not start (the desktop did, or this tab was closed): the head's newest session,
+  // from sessions.list, so its text is readable here and the next message continues it.
+  async function adoptSession(teamId: string) {
+    if (state.conversations[teamId]) return
+    const roleId = head(teamId)?.roleId
+    if (!roleId) return
+    const result = await attempt((bearer) => call("sessions.list", { teamId, roleId, limit: 20 }, bearer))
+    if ("error" in result || state.conversations[teamId]) return
+    const latest = result.value.sessions.slice().sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt))[0]
+    if (!latest) return
+    setState("conversations", teamId, { teamId, sessionHandle: latest.sessionHandle, messages: [] })
+    saveConversations()
     void loadTranscript(teamId)
   }
 
@@ -367,6 +434,10 @@ export function createBoltrigData() {
     await loadViewer()
     if (state.status !== "ready") return
     await Promise.all([loadAgents(), loadWorks(), loadTurns()])
+    // Sends left lost by a reload are asked about before anything is shown as failed.
+    Object.values(state.conversations).forEach((conversation) =>
+      conversation.messages.filter((message) => message.state === "lost").forEach((message) => void reconcile(conversation.teamId, message.key)),
+    )
   }
 
   // Poll: fast while a conversation is waiting on its head, slow otherwise. Open turn details refresh too.
@@ -421,6 +492,9 @@ export function createBoltrigData() {
     loadAgent,
     loadResearch,
     send,
+    reconcile,
+    resend,
+    adoptSession,
     newConversation,
     conversationTurns,
     teams,

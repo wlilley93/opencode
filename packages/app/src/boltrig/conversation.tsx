@@ -1,5 +1,5 @@
 import { Icon } from "@opencode/ui/icon"
-import { createEffect, createMemo, createSignal, For, Match, Show, Switch } from "solid-js"
+import { createEffect, createMemo, createSignal, For, Match, onMount, Show, Switch } from "solid-js"
 import { useLanguage } from "@/runtime/i18n/language"
 import { known, type StepItem, type Turn } from "./api"
 import { BoltrigComposer } from "./composer"
@@ -80,39 +80,69 @@ export function TurnBlock(props: { turn: Turn; name: string; open?: boolean }) {
   )
 }
 
-function Bubble(props: { message: Message; answered: boolean }) {
+function Bubble(props: { teamId: string; message: Message; answered: boolean }) {
   const language = useLanguage()
   const words = useBoltrigWords()
+  const data = useBoltrig()
   const status = () => {
     const message = props.message
     if (message.state === "failed") return words.errorText(message.error ?? "invalid")
+    if (message.state === "lost") return language.t("boltrig.send.lost")
+    if (message.state === "not_received") return language.t("boltrig.send.notReceived")
     // Once the head has a turn on this work, the turn carries the progress; the send state would only go stale.
     if (props.answered) return ""
     if (message.state === "queued") return language.t("boltrig.send.queued", { position: message.position ?? 0 })
     return language.t(`boltrig.send.${message.state}`)
   }
   return (
-    <div class="flex flex-col items-end py-2">
-      <div class="max-w-[80%] rounded-[10px] border border-v2-border-border-base bg-v2-background-bg-layer-01 px-3 py-2 whitespace-pre-wrap text-v2-text-text-base">
+    <div data-slot="boltrig-person-bubble" data-state={props.message.state} class="flex flex-col items-end py-2">
+      <div class="max-w-[80%] rounded-[10px] border border-v2-border-border-base bg-v2-background-bg-layer-01 px-3 py-2 break-words whitespace-pre-wrap text-v2-text-text-base">
         {props.message.text}
       </div>
-      <div class="mt-1 text-[11px] text-v2-text-text-faint">{status()}</div>
+      <div class="mt-1 flex items-center gap-2 text-[11px] text-v2-text-text-faint">
+        <span>{status()}</span>
+        <Show when={props.message.state === "lost"}>
+          <button type="button" class="underline max-[700px]:min-h-11 max-[700px]:min-w-11 max-[700px]:px-2" onClick={() => void data.reconcile(props.teamId, props.message.key)}>
+            {language.t("boltrig.send.check")}
+          </button>
+        </Show>
+        <Show when={props.message.state === "not_received"}>
+          <button type="button" class="underline max-[700px]:min-h-11 max-[700px]:min-w-11 max-[700px]:px-2" onClick={() => void data.resend(props.teamId, props.message.key)}>
+            {language.t("boltrig.send.resend")}
+          </button>
+        </Show>
+      </div>
     </div>
   )
 }
 
-// A step the server serves as text: the head's reply (agent_message), a question or a status. Untrusted text is
-// drawn as text, never as markup.
+// A step the server serves as text. The person's own words (person_message) sit on the right like local ones; the
+// head's reply, a question or a status sits on the left as a bubble. Every body is untrusted by contract: it is
+// drawn as plain text, never as markup, and marked as such.
 function Said(props: { step: StepItem; name: string }) {
   const language = useLanguage()
   const body = () => (props.step.body.state === "known" ? props.step.body.value.text : "")
+  const person = () => props.step.kind === "person_message"
   return (
-    <div class="py-2">
-      <div class="mb-1 flex items-center gap-2 text-xs text-v2-text-text-faint">
-        <span class="font-medium text-v2-text-text-muted">{props.name}</span>
-        <span>{language.t(`boltrig.step.${props.step.kind}`)}</span>
+    <div data-slot={person() ? "boltrig-person-bubble" : "boltrig-head-bubble"} class={`flex flex-col py-2 ${person() ? "items-end" : "items-start"}`}>
+      <Show when={!person()}>
+        <div class="mb-1 flex items-center gap-2 text-xs text-v2-text-text-faint">
+          <span class="font-medium text-v2-text-text-muted">{props.name}</span>
+          <Show when={props.step.kind !== "agent_message"}>
+            <span>{language.t(`boltrig.step.${props.step.kind}`)}</span>
+          </Show>
+        </div>
+      </Show>
+      <div
+        class={`max-w-[88%] rounded-[10px] px-3 py-2 leading-[var(--line-height-base)] break-words whitespace-pre-wrap text-v2-text-text-base ${
+          person() ? "border border-v2-border-border-base bg-v2-background-bg-layer-01" : "bg-v2-background-bg-layer-02"
+        }`}
+      >
+        {body()}
       </div>
-      <div class="leading-[var(--line-height-base)] whitespace-pre-wrap text-v2-text-text-base">{body()}</div>
+      <Show when={!person()}>
+        <div data-slot="boltrig-untrusted" class="mt-1 text-[11px] text-v2-text-text-faint">{language.t("boltrig.step.untrusted")}</div>
+      </Show>
     </div>
   )
 }
@@ -134,13 +164,27 @@ export function BoltrigConversation(props: { teamId: string; emptyHint?: string 
   type Item = { at: string; message?: Message; turn?: Turn; step?: StepItem }
   const items = createMemo<Item[]>(() => {
     const sent = conversation()?.messages ?? []
-    const mine = new Set(sent.map((message) => message.text))
     const messages = sent.map((message) => ({ at: message.sentAt, message }))
     const turns = data.conversationTurns(props.teamId).map((turn) => ({ at: turn.receivedAt, turn }))
-    // What the head said, from steps.list; the person's own messages are already drawn from this tab.
+    // The server will record the person's words as a person_message step. Each one is matched, by text and time,
+    // to the message kept locally (which carries the delivery state) and dropped; one that matches none was said
+    // elsewhere and is drawn from the server.
+    const claimed = new Set<string>()
     const steps = (data.state.transcripts[props.teamId]?.value ?? [])
-      .filter((step) => step.kind !== "tool_summary" && step.body.state === "known" && !mine.has(step.body.value.text))
-      .map((step) => ({ at: known(step.startedAt) ?? known(step.finishedAt) ?? "", step }))
+      .flatMap((step) =>
+        step.kind !== "tool_summary" && step.body.state === "known"
+          ? [{ step, text: step.body.value.text, at: known(step.startedAt) ?? known(step.finishedAt) ?? "" }]
+          : [],
+      )
+      .filter(({ step, text, at }) => {
+        if (step.kind !== "person_message") return true
+        const twin = sent.find(
+          (message) => !claimed.has(message.key) && message.text === text && Math.abs(Date.parse(message.sentAt) - Date.parse(at)) < 5 * 60_000,
+        )
+        if (twin) claimed.add(twin.key)
+        return !twin
+      })
+      .map(({ step, at }) => ({ at, step }))
     return [...messages, ...turns, ...steps].sort((a, b) => a.at.localeCompare(b.at))
   })
 
@@ -167,6 +211,9 @@ export function BoltrigConversation(props: { teamId: string; emptyHint?: string 
     return language.t("boltrig.conversation.meter", { team: props.teamId, runtime, status })
   }
 
+  const working = () => data.conversationTurns(props.teamId).some((turn) => !TERMINAL.has(turn.state))
+  onMount(() => void data.adoptSession(props.teamId))
+
   const notRunning = () => data.state.trees[props.teamId]?.value?.state === "not_running"
 
   return (
@@ -187,6 +234,7 @@ export function BoltrigConversation(props: { teamId: string; emptyHint?: string 
                   <Match when={item.message}>
                     {(message) => (
                       <Bubble
+                        teamId={props.teamId}
                         message={message()}
                         answered={data.conversationTurns(props.teamId).some((turn) => turn.work === message().workId && turn.receivedAt >= message().sentAt.slice(0, 19))}
                       />
@@ -211,7 +259,10 @@ export function BoltrigConversation(props: { teamId: string; emptyHint?: string 
                 </div>
               )}
             </Show>
-            <Show when={(conversation()?.messages.length ?? 0) > 0 && data.conversationTurns(props.teamId).length === 0}>
+            <Show when={working()}>
+              <div data-slot="boltrig-working" class="py-2 text-xs text-v2-text-text-faint">{language.t("boltrig.conversation.working", { name: headName() })}</div>
+            </Show>
+            <Show when={["queued", "running", "done"].includes(conversation()?.messages.at(-1)?.state ?? "") && data.conversationTurns(props.teamId).length === 0}>
               <div class="py-2 text-xs text-v2-text-text-faint">{language.t("boltrig.conversation.waiting")}</div>
             </Show>
           </Show>

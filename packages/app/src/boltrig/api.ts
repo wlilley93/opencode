@@ -124,6 +124,7 @@ export type TurnDetail = { turn: Turn; events: TurnEvent[]; complete: boolean; s
 export type SendRequest =
   | { kind: "new"; teamId: string; roleId?: string; workId: string; idempotencyKey: string; text: string }
   | { kind: "continue"; teamId: string; roleId?: string; sessionHandle: string; idempotencyKey: string; text: string }
+export type ReconcileRequest = { teamId: string; roleId?: string; idempotencyKey: string }
 export type SendResponse =
   | { state: "queued"; position: number; sessionHandle: string; workId: string }
   | { state: "running"; sessionHandle: string; workId: string }
@@ -148,7 +149,9 @@ export type RunItem = {
   finishedAt: KnownUnknown<string>
   state: { kind: "running" } | { kind: "uncertain" } | { kind: "finished" } | { kind: "cancelled" }
 }
-export type StepKind = "message" | "agent_message" | "question" | "approval_request" | "status" | "tool_summary"
+// `person_message` is not in contract 2.0.0-pre.6 yet: the server work in progress adds it, so the client reads it
+// when it arrives and never depends on it.
+export type StepKind = "person_message" | "message" | "agent_message" | "question" | "approval_request" | "status" | "tool_summary"
 export type StepItem = {
   stepHandle: string
   ordinal: number
@@ -247,6 +250,7 @@ type Ops = {
   "turn.list": [{ uncertain?: boolean }, TurnPage]
   "turn.show": [{ turnId: string; agent?: string }, TurnDetail]
   "conversation.send": [SendRequest, SendResponse]
+  "conversation.reconcile": [ReconcileRequest, SendResponse]
   "sessions.list": [{ teamId: string; roleId?: string; cursor?: string; limit: number }, { sessions: SessionItem[]; cursor: Cursor }]
   "runs.list": [{ sessionHandle: string; cursor?: string; limit: number }, { runs: RunItem[]; cursor: Cursor }]
   "steps.list": [{ runHandle: string; cursor?: string; limit: number }, { steps: StepItem[]; cursor: Cursor }]
