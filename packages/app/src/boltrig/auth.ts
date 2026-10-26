@@ -9,18 +9,13 @@
 
 import { createRoot } from "solid-js"
 import { createStore } from "solid-js/store"
-import { activeCompany } from "./companies"
+import { activeCompany, allowsRedirect } from "./companies"
 
 // The issuer and client id belong to the active company (companies.ts); each company keeps its own session.
 const ISSUER = activeCompany().issuer
 const CLIENT_ID = activeCompany().clientId
-// The redirects registered for the web client in Authentik: this Mac, and its tailnet https address (served by
-// `tailscale serve --https=11443`) so a phone on the tailnet can sign in; a browser allows PKCE only over https or localhost.
-export const REGISTERED_REDIRECTS = [
-  "http://127.0.0.1:42813/callback",
-  "https://mac-mini-m4-pro.tailb4b671.ts.net:11443/callback",
-]
-export const REGISTERED_REDIRECT = REGISTERED_REDIRECTS.join(" or ")
+// The return addresses registered for the active company's client, for the sign-in screen's message; empty when not known.
+export const registeredRedirect = () => (activeCompany().redirects ?? []).join(" or ")
 
 const SESSION_KEY = `boltrig.session.${activeCompany().id}`
 const PENDING_KEY = "boltrig.oidc.pending"
@@ -116,7 +111,7 @@ function random(length: number) {
 }
 
 export const redirectUri = () => `${location.origin}/callback`
-export const originRegistered = () => REGISTERED_REDIRECTS.includes(redirectUri())
+export const originRegistered = () => allowsRedirect(activeCompany(), redirectUri())
 
 export async function beginSignIn() {
   const config = await discover()

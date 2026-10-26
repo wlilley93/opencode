@@ -61,6 +61,7 @@ export const BOLTRIG_ENGLISH = {
 
   "boltrig.company.label": "Company",
   "boltrig.company.add": "Add",
+  "boltrig.company.remove": "Remove {{name}} from this app",
   "boltrig.company.save": "Add and switch",
   "boltrig.company.field.name": "Company name",
   "boltrig.company.field.apiBase": "API base, a path such as /boltrig-api or an https address",

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from "bun:test"
-import { activeCompany, addCompany, checkCompany, companies, removeCompany } from "./companies"
+import { activeCompany, addCompany, allowsRedirect, checkCompany, companies, removeCompany } from "./companies"
 
 const good = {
   name: "Classical Visas",
@@ -49,6 +49,25 @@ describe("companies", () => {
 
   test("ignores stored entries that are not well formed", () => {
     localStorage.setItem("boltrig.companies", JSON.stringify([{ id: "x" }, "bad", good]))
+    expect(companies().map((company) => company.id)).toEqual(["boltrig-dev"])
+  })
+
+  test("the built-in company knows its registered return addresses and an added one does not", () => {
+    const [builtIn] = companies()
+    expect(allowsRedirect(builtIn!, "http://127.0.0.1:42813/callback")).toBe(true)
+    expect(allowsRedirect(builtIn!, "http://localhost:3000/callback")).toBe(false)
+    const added = addCompany(good)
+    expect(typeof added).toBe("object")
+    const company = companies()[1]!
+    expect(company.redirects).toBeUndefined()
+    expect(allowsRedirect(company, "http://localhost:3000/callback")).toBe(true)
+  })
+
+  test("a stored entry with a malformed redirects list is ignored", () => {
+    localStorage.setItem(
+      "boltrig.companies",
+      JSON.stringify([{ id: "x", name: "X", apiBase: "/x", issuer: "https://x.example/", clientId: "c", redirects: [1] }]),
+    )
     expect(companies().map((company) => company.id)).toEqual(["boltrig-dev"])
   })
 })

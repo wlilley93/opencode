@@ -2,8 +2,8 @@ import { useNavigate } from "@solidjs/router"
 import { createStore } from "solid-js/store"
 import { For, onMount, Show } from "solid-js"
 import { useLanguage } from "@/runtime/i18n/language"
-import { acceptPastedToken, beginSignIn, completeSignIn, originRegistered, REGISTERED_REDIRECT, signedOutReason } from "./auth"
-import { activeCompany, addCompany, companies, switchCompany } from "./companies"
+import { acceptPastedToken, beginSignIn, completeSignIn, originRegistered, registeredRedirect, signedOutReason } from "./auth"
+import { activeCompany, addCompany, companies, removeCompany, switchCompany } from "./companies"
 import { Tile } from "./parts"
 
 // The signed-out screen: sign in with the estate's Authentik, or (development only) paste an access token.
@@ -53,6 +53,18 @@ export function BoltrigSignIn() {
             {language.t("boltrig.company.add")}
           </button>
         </div>
+        <Show when={activeCompany().redirects === undefined}>
+          <button
+            type="button"
+            class="mb-4 -mt-2 text-xs text-v2-text-text-faint underline max-[700px]:h-11"
+            onClick={() => {
+              removeCompany(activeCompany().id)
+              switchCompany("boltrig-dev")
+            }}
+          >
+            {language.t("boltrig.company.remove", { name: activeCompany().name })}
+          </button>
+        </Show>
         <Show when={add.open}>
           <form
             class="mb-4 flex flex-col gap-2"
@@ -102,7 +114,7 @@ export function BoltrigSignIn() {
         </button>
         <Show when={!originRegistered()}>
           <div class="mt-2 text-xs text-v2-text-text-faint">
-            {language.t("boltrig.signin.originNotRegistered", { redirect: REGISTERED_REDIRECT })}
+            {language.t("boltrig.signin.originNotRegistered", { redirect: registeredRedirect() })}
           </div>
         </Show>
 

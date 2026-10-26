@@ -5,7 +5,16 @@
 // in this module. Switching company reloads the page, so nothing one company sent can stay in memory and appear
 // in another company's view.
 
-export type Company = { id: string; name: string; apiBase: string; issuer: string; clientId: string }
+// `redirects` are the return addresses the company's sign-in provider has registered for this client, when we know them.
+// Unknown (an added company) means the app does not guess: it lets the sign-in attempt go and shows the provider's refusal.
+export type Company = {
+  id: string
+  name: string
+  apiBase: string
+  issuer: string
+  clientId: string
+  redirects?: string[]
+}
 export type CompanyInput = { name: string; apiBase: string; issuer: string; clientId: string }
 
 // The server this app was built against: the dev stack, signed in through Authentik.
@@ -15,7 +24,14 @@ const builtIn: Company = {
   apiBase: (import.meta.env.VITE_BOLTRIG_API as string | undefined) ?? "/boltrig-api",
   issuer: "https://id.boltrig.ai/application/o/boltrig-os/",
   clientId: "GWyQq45Sp4AnHxaD1Wr4AaHxJPJ8a1KZ1YRJIjJx",
+  // Registered in Authentik for this client: this Mac, and its tailnet https address (served by `tailscale serve --https=11443`)
+  // so a phone on the tailnet can sign in; a browser allows PKCE only over https or localhost.
+  redirects: ["http://127.0.0.1:42813/callback", "https://mac-mini-m4-pro.tailb4b671.ts.net:11443/callback"],
 }
+
+/** Whether this app's return address may be tried for a company: always, unless the company's registered addresses are known. */
+export const allowsRedirect = (company: Company, redirect: string) =>
+  company.redirects === undefined || company.redirects.includes(redirect)
 
 const LIST_KEY = "boltrig.companies"
 const ACTIVE_KEY = "boltrig.company"
@@ -35,7 +51,9 @@ function readAdded(): Company[] {
 function isCompany(value: unknown): value is Company {
   if (typeof value !== "object" || value === null) return false
   const company = value as Record<string, unknown>
-  return ["id", "name", "apiBase", "issuer", "clientId"].every((key) => typeof company[key] === "string" && company[key])
+  const text = ["id", "name", "apiBase", "issuer", "clientId"].every((key) => typeof company[key] === "string" && company[key])
+  const redirects = company.redirects
+  return text && (redirects === undefined || (Array.isArray(redirects) && redirects.every((r) => typeof r === "string")))
 }
 
 function writeAdded(list: Company[]) {
