@@ -4,6 +4,8 @@
 // The base is same-origin (`/boltrig-api`, proxied to the server by the dev server) because the Client API
 // sends no CORS headers. Nothing secret lives here: the token is passed in by the caller on every call.
 
+import { activeCompany } from "./companies"
+
 export const CONTRACT = "boltrig.human"
 export const CONTRACT_MINOR = 2
 // The highest minor this client implements. `hello` asks for it; a server that does not offer it answers a lower
@@ -12,7 +14,7 @@ export const CONTRACT_MINOR = 2
 export const RESEARCH_MINOR = 3
 export const contractHeader = (minor: number) => `${CONTRACT}/2.${minor}`
 
-export const apiBase = (import.meta.env.VITE_BOLTRIG_API as string | undefined) ?? "/boltrig-api"
+export const apiBase = () => activeCompany().apiBase
 
 // ---- Shared shapes -------------------------------------------------------------------------------------------
 
@@ -396,7 +398,7 @@ export async function call<O extends Op>(
   }
   if (token) headers.authorization = `Bearer ${token}`
 
-  const response = await fetch(`${apiBase}/${op}`, {
+  const response = await fetch(`${apiBase()}/${op}`, {
     method: "POST",
     headers,
     body: JSON.stringify(body),

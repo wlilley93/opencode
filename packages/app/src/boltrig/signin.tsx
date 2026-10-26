@@ -1,14 +1,16 @@
 import { useNavigate } from "@solidjs/router"
 import { createStore } from "solid-js/store"
-import { onMount, Show } from "solid-js"
+import { For, onMount, Show } from "solid-js"
 import { useLanguage } from "@/runtime/i18n/language"
 import { acceptPastedToken, beginSignIn, completeSignIn, originRegistered, REGISTERED_REDIRECT, signedOutReason } from "./auth"
+import { activeCompany, addCompany, companies, switchCompany } from "./companies"
 import { Tile } from "./parts"
 
 // The signed-out screen: sign in with the estate's Authentik, or (development only) paste an access token.
 export function BoltrigSignIn() {
   const language = useLanguage()
   const [form, setForm] = createStore({ pasted: "", error: "", busy: false })
+  const [add, setAdd] = createStore({ open: false, name: "", apiBase: "", issuer: "", clientId: "", error: "" })
 
   const signIn = async () => {
     setForm({ busy: true, error: "" })
@@ -29,6 +31,62 @@ export function BoltrigSignIn() {
             <div class="text-v2-text-text-faint">{language.t("boltrig.signin.subtitle")}</div>
           </div>
         </div>
+        <div class="mb-4 flex items-center gap-2">
+          <select
+            aria-label={language.t("boltrig.company.label")}
+            class="h-8 min-w-0 flex-1 rounded-[7px] max-[700px]:h-11 max-[700px]:text-base border border-v2-border-border-strong bg-v2-background-bg-layer-01 px-2 text-v2-text-text-base"
+            onChange={(event) => switchCompany(event.currentTarget.value)}
+          >
+            <For each={companies()}>
+              {(company) => (
+                <option value={company.id} selected={company.id === activeCompany().id}>
+                  {company.name}
+                </option>
+              )}
+            </For>
+          </select>
+          <button
+            type="button"
+            class="h-8 rounded-[7px] border border-v2-border-border-strong px-3 max-[700px]:h-11 max-[700px]:px-4 text-v2-text-text-muted"
+            onClick={() => setAdd({ open: !add.open, error: "" })}
+          >
+            {language.t("boltrig.company.add")}
+          </button>
+        </div>
+        <Show when={add.open}>
+          <form
+            class="mb-4 flex flex-col gap-2"
+            onSubmit={(event) => {
+              event.preventDefault()
+              const result = addCompany({ name: add.name, apiBase: add.apiBase, issuer: add.issuer, clientId: add.clientId })
+              if (typeof result === "string") return setAdd({ error: language.t(`boltrig.company.error.${result}`) })
+              switchCompany(result.id)
+            }}
+          >
+            <For each={["name", "apiBase", "issuer", "clientId"] as const}>
+              {(field) => (
+                <input
+                  type="text"
+                  autocomplete="off"
+                  value={add[field]}
+                  onInput={(event) => setAdd(field, event.currentTarget.value)}
+                  placeholder={language.t(`boltrig.company.field.${field}`)}
+                  aria-label={language.t(`boltrig.company.field.${field}`)}
+                  class="h-8 rounded-[7px] max-[700px]:h-11 max-[700px]:text-base border border-v2-border-border-strong bg-v2-background-bg-layer-01 px-2.5 text-xs text-v2-text-text-base outline-none"
+                />
+              )}
+            </For>
+            <button
+              type="submit"
+              class="h-8 rounded-[7px] border border-v2-border-border-strong px-3 max-[700px]:h-11 text-v2-text-text-muted"
+            >
+              {language.t("boltrig.company.save")}
+            </button>
+            <Show when={add.error}>
+              <div class="text-xs text-v2-text-text-muted">{add.error}</div>
+            </Show>
+          </form>
+        </Show>
         <Show when={signedOutReason()}>
           {(reason) => (
             <div class="mb-3 text-v2-text-text-muted">{language.t(`boltrig.signin.reason.${reason()}`)}</div>

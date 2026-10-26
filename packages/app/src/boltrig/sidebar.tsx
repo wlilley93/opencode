@@ -2,6 +2,7 @@ import { Icon } from "@opencode/ui/icon"
 import { createSignal, For, Show, type JSX } from "solid-js"
 import { useLanguage } from "@/runtime/i18n/language"
 import { signOut } from "./auth"
+import { activeCompany, companies, switchCompany } from "./companies"
 import { initialOf, isLive, modes, useBoltrig, type ModeID } from "./model"
 import { Dot, RowError, Tile } from "./parts"
 
@@ -137,6 +138,21 @@ export function BoltrigSidebar(props: {
           {language.t("boltrig.signout")}
         </button>
       </div>
+      <Show when={companies().length > 1}>
+        <select
+          aria-label={language.t("boltrig.company.label")}
+          class="mx-1.5 mt-1 h-7 shrink-0 rounded-[7px] max-[700px]:h-11 max-[700px]:text-base border border-v2-border-border-strong bg-v2-background-bg-layer-01 px-2 text-xs text-v2-text-text-muted"
+          onChange={(event) => switchCompany(event.currentTarget.value)}
+        >
+          <For each={companies()}>
+            {(company) => (
+              <option value={company.id} selected={company.id === activeCompany().id}>
+                {company.name}
+              </option>
+            )}
+          </For>
+        </select>
+      </Show>
       <div class="h-2 shrink-0" />
       <Row selected={props.selection.kind === "home"} onClick={() => props.onSelect({ kind: "home" })}>
         <Tile>{language.t("boltrig.double.initial")}</Tile>

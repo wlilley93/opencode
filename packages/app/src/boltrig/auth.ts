@@ -9,9 +9,11 @@
 
 import { createRoot } from "solid-js"
 import { createStore } from "solid-js/store"
+import { activeCompany } from "./companies"
 
-export const ISSUER = "https://id.boltrig.ai/application/o/boltrig-os/"
-export const CLIENT_ID = "GWyQq45Sp4AnHxaD1Wr4AaHxJPJ8a1KZ1YRJIjJx"
+// The issuer and client id belong to the active company (companies.ts); each company keeps its own session.
+const ISSUER = activeCompany().issuer
+const CLIENT_ID = activeCompany().clientId
 // The redirects registered for the web client in Authentik: this Mac, and its tailnet https address (served by
 // `tailscale serve --https=11443`) so a phone on the tailnet can sign in; a browser allows PKCE only over https or localhost.
 export const REGISTERED_REDIRECTS = [
@@ -20,7 +22,7 @@ export const REGISTERED_REDIRECTS = [
 ]
 export const REGISTERED_REDIRECT = REGISTERED_REDIRECTS.join(" or ")
 
-const SESSION_KEY = "boltrig.session"
+const SESSION_KEY = `boltrig.session.${activeCompany().id}`
 const PENDING_KEY = "boltrig.oidc.pending"
 const RETURN_TO = "/boltrig"
 
