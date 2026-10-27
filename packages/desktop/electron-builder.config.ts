@@ -41,9 +41,9 @@ function resolveChannel() {
 }
 
 const APP_IDS = {
-  dev: "ai.opencode.desktop.dev",
-  beta: "ai.opencode.desktop.beta",
-  prod: "ai.opencode.desktop",
+  dev: "ai.boltrig.os.desktop",
+  beta: "ai.boltrig.os.desktop.beta",
+  prod: "ai.boltrig.os.desktop",
 } as const
 
 // libappimage (used by AppImageLauncher) resolves the .desktop entry inside an

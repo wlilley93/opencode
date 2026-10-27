@@ -41,7 +41,10 @@ const connect = Effect.fn("BackgroundService.connect")(function* (mode: "initial
   const runFork = Effect.runForkWith(yield* Effect.context<FileSystem.FileSystem | Path.Path>())
   const isolated = !app.isPackaged && process.env.OPENCODE_DESKTOP_ISOLATED_SERVER === "1"
   const cli = yield* desktopCli.resolve
-  const version = serviceVersion({ channel: CHANNEL, isolated, mode, version: cli.version })
+  // Boltrig OS: a shared dev session adopts the installed service at whatever version it runs; pinning
+  // the source version would stop that service and start one registered where nothing looks.
+  const shared = !app.isPackaged && !isolated ? process.env.BOLTRIG_SHARED_CLI : undefined
+  const version = shared ? undefined : serviceVersion({ channel: CHANNEL, isolated, mode, version: cli.version })
 
   if (isolated) process.env.XDG_STATE_HOME = app.getPath("userData")
   const client = yield* Effect.promise(() => import("@opencode/client/service"))
@@ -59,7 +62,7 @@ const connect = Effect.fn("BackgroundService.connect")(function* (mode: "initial
       // A fixed port makes a second contender fail to bind and back off; port 0 never collides, so two
       // services could boot against the same database.
       command: [
-        ...cli.command,
+        ...(shared ? [shared] : cli.command),
         "serve",
         "--service",
         ...(isolated ? ["--hostname", "0.0.0.0", "--port", String(0x0c0c)] : []),

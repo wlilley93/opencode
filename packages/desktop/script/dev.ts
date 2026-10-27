@@ -16,7 +16,14 @@ async function main() {
   const options = selectOptions()
 
   if (options.server.type === "build") process.env.OPENCODE_DESKTOP_SERVER_CHANNEL = "local"
-  process.env.OPENCODE_DESKTOP_ISOLATED_SERVER ??= "1"
+  // Boltrig OS: share the machine's running OpenCode service instead of spawning a
+  // private one on 3084, so the UI designs against real sessions and history.
+  // Set to "1" to go back to an isolated dev server.
+  // The source CLI registers under the "local" channel, which the shared lookup never reads, so the
+  // shared service is the installed opencode; without one on PATH there is nothing to share.
+  const shared = Bun.which("opencode")
+  process.env.OPENCODE_DESKTOP_ISOLATED_SERVER = process.env.BOLTRIG_ISOLATED_DEV ?? (shared ? "0" : "1")
+  if (shared) process.env.BOLTRIG_SHARED_CLI = shared
   await prepareDesktop()
   await prepareServer(options.server)
   await startDesktop(options.electron)
